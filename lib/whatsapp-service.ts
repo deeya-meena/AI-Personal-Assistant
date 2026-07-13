@@ -2,13 +2,32 @@ import makeWASocket, {
   useMultiFileAuthState, 
   DisconnectReason,
   delay,
-  Browsers
+  Browsers,
+  fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import path from 'path';
 import fs from 'fs';
 import { BaseIntegrationService, IntegrationStatus } from './integration-service';
 import { createClient } from "@insforge/sdk";
+
+// Helper to map dial prefix to ISO country code (localeCountryIso31661Alpha2)
+function getIsoCountryCode(phoneNumber: string): string {
+  const clean = phoneNumber.replace(/[^0-9]/g, '');
+  if (clean.startsWith('1')) return 'US';
+  if (clean.startsWith('44')) return 'GB';
+  if (clean.startsWith('91')) return 'IN';
+  if (clean.startsWith('92')) return 'PK';
+  if (clean.startsWith('49')) return 'DE';
+  if (clean.startsWith('33')) return 'FR';
+  if (clean.startsWith('61')) return 'AU';
+  if (clean.startsWith('55')) return 'BR';
+  if (clean.startsWith('62')) return 'ID';
+  if (clean.startsWith('60')) return 'MY';
+  if (clean.startsWith('63')) return 'PH';
+  if (clean.startsWith('66')) return 'TH';
+  return 'US'; // default fallback
+}
 
 // Define structured tool descriptions
 export interface WhatsAppToolMeta {
@@ -604,81 +623,33 @@ export class WhatsAppService extends BaseIntegrationService {
     const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
     if (!cleanNumber) throw new Error("Invalid phone number");
 
-    // ── 1. Tear down any stale socket ─────────────────────────────────────
-    if (this.sockets[userId]) {
-      try { this.sockets[userId].end(undefined); } catch (_) {}
-      delete this.sockets[userId];
-    }
-
+    // ── 1. Clear old session so we start unauthenticated ──────────────────
     const sessionDir = path.join(process.cwd(), '.wa_sessions', `user_${userId}`);
-
-    // ── 2. Clear old session so we start unauthenticated ──────────────────
     if (fs.existsSync(sessionDir)) {
-      try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (_) {}
+      try { 
+        console.log(`[WhatsAppService] Clearing old session directory for fresh pairing: ${sessionDir}`);
+        fs.rmSync(sessionDir, { recursive: true, force: true }); 
+      } catch (_) {}
     }
     fs.mkdirSync(sessionDir, { recursive: true });
 
-    console.log(`[WhatsAppService] Starting pairing for user ${userId}, phone ${cleanNumber}`);
-    this.activeModes[userId] = 'production';
+    console.log(`[WhatsAppService] Starting pairing flow for user ${userId}, phone ${cleanNumber}`);
+    
+    // ── 2. Create the target socket directly ──────────────────────────────
+    // We instantiate the persistent connection from the beginning.
+    // It uses fetchLatestBaileysVersion() internally and listens for
+    // the pairing confirmation from WhatsApp server.
+    const sock = await this.getSocket(userId, accessToken, true, phoneNumber);
 
-    // ── 3. Extract country code ────────────────────────────────────────────
-    const countryCode = phoneNumber.startsWith('+1') ? '1'
-      : phoneNumber.startsWith('+44') ? '44'
-      : phoneNumber.startsWith('+91') ? '91'
-      : phoneNumber.startsWith('+92') ? '92'
-      : phoneNumber.startsWith('+49') ? '49'
-      : phoneNumber.startsWith('+33') ? '33'
-      : phoneNumber.startsWith('+61') ? '61'
-      : phoneNumber.startsWith('+55') ? '55'
-      : phoneNumber.startsWith('+62') ? '62'
-      : phoneNumber.startsWith('+60') ? '60'
-      : phoneNumber.startsWith('+63') ? '63'
-      : phoneNumber.startsWith('+66') ? '66'
-      : cleanNumber.slice(0, 2);
+    // ── 3. Wait for socket transport to open ──────────────────────────────
+    console.log(`[WhatsAppService] Waiting for socket transport to open...`);
+    await sock.waitForSocketOpen();
+    await delay(1000);
 
-    // ── 4. Create the PAIRING socket (countryCode mode) ───────────────────
-    // This socket's only job is to generate the code.
-    // WhatsApp fires creds.update (saving the pairing key to disk) then
-    // immediately closes the socket with 405. This is NORMAL and intentional.
-    const { state: pairState, saveCreds: pairSaveCreds } = await useMultiFileAuthState(sessionDir);
-
-    const pairSock = makeWASocket({
-      auth: pairState,
-      logger: pino({ level: 'silent' }),
-      printQRInTerminal: false,
-      browser: Browsers.ubuntu('Chrome'),
-      countryCode,
-      defaultQueryTimeoutMs: 30000,
-    });
-
-    // Wait for socket transport to open
-    console.log(`[WhatsAppService] Waiting for pairing socket to open...`);
-    await pairSock.waitForSocketOpen();
-    await delay(500);
-
-    // Save credentials as they come in
-    pairSock.ev.on('creds.update', () => {
-      console.log(`[WhatsAppService] Pairing creds saved for user ${userId}`);
-      pairSaveCreds();
-    });
-
-    // Request the pairing code
-    console.log(`[WhatsAppService] Requesting pairing code for ${cleanNumber}`);
-    const pairingCode = await pairSock.requestPairingCode(cleanNumber);
-    console.log(`[WhatsAppService] Pairing code: ${pairingCode}`);
-
-    // ── 5. IMMEDIATELY start the persistent web socket ────────────────────
-    // The pairing socket will close (405) after giving the code — that's fine.
-    // The PERSISTENT socket (created by getSocket) is what WhatsApp sends the
-    // authentication data to when the user enters the code on their phone.
-    // It will fire connection:open, updating DB and pushing the SSE event.
-    console.log(`[WhatsAppService] Starting persistent web socket to receive pairing auth...`);
-    // Small delay to let creds.update write to disk before getSocket reads them
-    setTimeout(() => {
-      this.getSocket(userId, accessToken, true)
-        .then(() => console.log(`[WhatsAppService] Persistent socket ready for user ${userId}`))
-        .catch(e => console.error(`[WhatsAppService] Persistent socket error: ${e.message}`));
-    }, 1000);
+    // ── 4. Request the pairing code on this socket ────────────────────────
+    console.log(`[WhatsAppService] Requesting pairing code for phone: ${cleanNumber}`);
+    const pairingCode = await sock.requestPairingCode(cleanNumber);
+    console.log(`[WhatsAppService] Pairing code successfully generated: ${pairingCode}`);
 
     this.emit(`pairing:${userId}`, { pairingCode });
     return pairingCode;
@@ -762,7 +733,7 @@ export class WhatsAppService extends BaseIntegrationService {
   /**
    * Helper to retrieve or initialize a Baileys socket for a user.
    */
-  async getSocket(userId: string, accessToken: string, forceNew = false): Promise<any> {
+  async getSocket(userId: string, accessToken: string, forceNew = false, pairingPhone?: string): Promise<any> {
     const sessionDir = path.join(process.cwd(), '.wa_sessions', `user_${userId}`);
 
     if (this.sockets[userId] && !forceNew) {
@@ -771,6 +742,7 @@ export class WhatsAppService extends BaseIntegrationService {
 
     if (this.sockets[userId]) {
       try {
+        console.log(`[WhatsAppService] Terminating stale socket for user: ${userId}`);
         this.sockets[userId].end(undefined);
       } catch (e) {}
       delete this.sockets[userId];
@@ -779,25 +751,58 @@ export class WhatsAppService extends BaseIntegrationService {
     console.log(`[WhatsAppService] Initializing Baileys connection for user: ${userId}`);
     this.activeModes[userId] = 'production';
 
+    // 1. Fetch latest Baileys protocol version with a safe fallback
+    let version: any = [2, 3000, 1015901307];
+    try {
+      const latest = await fetchLatestBaileysVersion();
+      if (latest?.version) {
+        version = latest.version;
+        console.log(`[WhatsAppService] Using latest Baileys version: ${version.join('.')}`);
+      }
+    } catch (err: any) {
+      console.warn(`[WhatsAppService] Failed to fetch latest Baileys version, using fallback. Error: ${err.message}`);
+    }
+
+    // 2. Resolve target phone number prefix to ISO 2-letter country code
+    let targetPhone = pairingPhone || '';
+    if (!targetPhone) {
+      try {
+        const dbStatus = await this.getDbStatus(userId, accessToken);
+        if (dbStatus?.phone) {
+          targetPhone = dbStatus.phone;
+        }
+      } catch (e) {}
+    }
+    const countryCode = targetPhone ? getIsoCountryCode(targetPhone) : 'US';
+    console.log(`[WhatsAppService] Resolved ISO countryCode for user agent: ${countryCode} (phone: ${targetPhone || 'None'})`);
+
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
     const sock = makeWASocket({
+      version,
       auth: state,
-      logger: pino({ level: 'silent' }),
+      logger: pino({ level: 'debug' }), // Enabled debug logs for tracing state changes
       printQRInTerminal: false,
-      defaultQueryTimeoutMs: 25000,
+      browser: Browsers.ubuntu('Chrome'),
+      countryCode, // The 2-letter ISO country code
+      defaultQueryTimeoutMs: 30000,
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', () => {
+      console.log(`[WhatsAppService] creds.update event fired for user ${userId}`);
+      saveCreds();
+    });
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect } = update;
+      console.log(`[WhatsAppService] connection.update for user ${userId}: connection=${connection}`);
 
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const errMessage = lastDisconnect?.error?.message || "Unknown error";
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-        console.log(`[WhatsAppService] Connection closed for user ${userId}. Reconnecting: ${shouldReconnect}`);
+        console.log(`[WhatsAppService] Connection closed for user ${userId}. Status Code: ${statusCode}, Error: ${errMessage}. Reconnecting: ${shouldReconnect}`);
         
         this.emit(`connection:${userId}`, { 
           status: shouldReconnect ? 'connecting' : 'disconnected', 
@@ -806,10 +811,12 @@ export class WhatsAppService extends BaseIntegrationService {
 
         if (shouldReconnect) {
           setTimeout(() => {
-            this.getSocket(userId, accessToken, true);
+            this.getSocket(userId, accessToken, true, targetPhone)
+              .catch(e => console.error(`[WhatsAppService] Reconnection failed:`, e));
           }, 5000);
         } else {
           // Permanently logged out
+          console.log(`[WhatsAppService] User ${userId} logged out permanently. Cleaning credentials.`);
           try {
             fs.rmSync(sessionDir, { recursive: true, force: true });
           } catch (e) {}
@@ -817,8 +824,8 @@ export class WhatsAppService extends BaseIntegrationService {
           await this.updateDbStatus(userId, 'disconnected', accessToken, { mode: 'production', phone: '' });
         }
       } else if (connection === 'open') {
-        const phone = sock.user?.id.split(':')[0] || '';
-        console.log(`[WhatsAppService] Connection opened successfully for user ${userId}`);
+        const phone = sock.user?.id.split(':')[0] || targetPhone || '';
+        console.log(`[WhatsAppService] Connection successfully opened for user ${userId}. Phone: ${phone}`);
 
         await this.updateDbStatus(userId, 'connected', accessToken, {
           mode: 'production',

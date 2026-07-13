@@ -254,6 +254,33 @@ const exchangedCodes = new Set<string>();
 
 export default function IntegrationsPage() {
   const { user } = useAuth();
+  
+  // Helper to ensure we always use a valid, unexpired access token for custom backend API routes
+  const getValidToken = async (): Promise<string> => {
+    let token = (insforge as any).tokenManager?.getAccessToken() || "";
+    if (!token) return "";
+    
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        const isExpired = payload.exp * 1000 < Date.now() + 10000; // 10s buffer
+        if (isExpired) {
+          console.log("[Integrations] Access token expired, refreshing session...");
+          const { data, error } = await insforge.auth.refreshSession();
+          if (!error && data?.accessToken) {
+            token = data.accessToken;
+          } else {
+            console.error("[Integrations] Failed to refresh session:", error);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Integrations] Error parsing/refreshing token:", err);
+    }
+    return token;
+  };
+
   const [dbData, setDbData] = useState<Record<string, { status: string; synced_count: number; mode?: string; phone?: string; lastConnected?: string }>>({});
   const [loadingDb, setLoadingDb] = useState(true);
   const [activeDialogPlatform, setActiveDialogPlatform] = useState<Platform | null>(null);
@@ -341,62 +368,73 @@ export default function IntegrationsPage() {
   // Real-time EventSource listener
   useEffect(() => {
     if (!user) return;
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
-    if (!insforgeToken) return;
+    
+    let eventSource: EventSource | null = null;
+    let active = true;
 
-    const eventSource = new EventSource(`/api/integrations/whatsapp/sse?token=${encodeURIComponent(insforgeToken)}`);
+    const initSse = async () => {
+      const insforgeToken = await getValidToken();
+      if (!insforgeToken || !active) return;
 
-    eventSource.addEventListener("status", (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        console.log("[SSE Status Update]:", data);
-        
-        let wasConnected = false;
-        setDbData(prev => {
-          wasConnected = prev.whatsapp?.status === "connected";
-          return {
-            ...prev,
-            whatsapp: {
-              status: data.status,
-              synced_count: data.status === 'connected' ? 85 : 0,
-              mode: data.mode || 'production',
-              phone: data.phone || '',
-              lastConnected: data.lastConnected || ''
-            }
-          };
-        });
+      eventSource = new EventSource(`/api/integrations/whatsapp/sse?token=${encodeURIComponent(insforgeToken)}`);
 
-        if (data.status === 'connected') {
-          setWaConnectOpen(false);
-          setActiveDialogPlatform(prev => prev?.id === 'whatsapp' ? null : prev);
-          setIsPollingWa(false);
+      eventSource.addEventListener("status", (e: any) => {
+        try {
+          const data = JSON.parse(e.data);
+          console.log("[SSE Status Update]:", data);
           
-          if (isInitialSse.current) {
-            isInitialSse.current = false;
-          } else if (!wasConnected) {
-            triggerToast("WhatsApp Connected");
-          }
-        } else {
-          isInitialSse.current = false;
-        }
-      } catch (err) {
-        console.error("Failed to parse SSE status:", err);
-      }
-    });
+          let wasConnected = false;
+          setDbData(prev => {
+            wasConnected = prev.whatsapp?.status === "connected";
+            return {
+              ...prev,
+              whatsapp: {
+                status: data.status,
+                synced_count: data.status === 'connected' ? 85 : 0,
+                mode: data.mode || 'production',
+                phone: data.phone || '',
+                lastConnected: data.lastConnected || ''
+              }
+            };
+          });
 
-    eventSource.addEventListener("pairingCode", (e: any) => {
-      try {
-        const data = JSON.parse(e.data);
-        console.log("[SSE Pairing Code Update]:", data);
-        setWaPairingCode(data.pairingCode);
-        setWaConnecting(false);
-      } catch (err) {
-        console.error("Failed to parse SSE pairingCode:", err);
-      }
-    });
+          if (data.status === 'connected') {
+            setWaConnectOpen(false);
+            setActiveDialogPlatform(prev => prev?.id === 'whatsapp' ? null : prev);
+            setIsPollingWa(false);
+            
+            if (isInitialSse.current) {
+              isInitialSse.current = false;
+            } else if (!wasConnected) {
+              triggerToast("WhatsApp Connected");
+            }
+          } else {
+            isInitialSse.current = false;
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE status:", err);
+        }
+      });
+
+      eventSource.addEventListener("pairingCode", (e: any) => {
+        try {
+          const data = JSON.parse(e.data);
+          console.log("[SSE Pairing Code Update]:", data);
+          setWaPairingCode(data.pairingCode);
+          setWaConnecting(false);
+        } catch (err) {
+          console.error("Failed to parse SSE pairingCode:", err);
+        }
+      });
+    };
+
+    initSse();
 
     return () => {
-      eventSource.close();
+      active = false;
+      if (eventSource) {
+        eventSource.close();
+      }
     };
   }, [user]);
 
@@ -419,7 +457,6 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (!waPairingCode || !waConnectOpen || !user) return;
 
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
     let attempts = 0;
     const MAX_ATTEMPTS = 72; // 72 × 5s = 6 minutes max
 
@@ -430,6 +467,7 @@ export default function IntegrationsPage() {
         return;
       }
       try {
+        const insforgeToken = await getValidToken();
         const res = await fetch("/api/integrations/whatsapp/status", {
           headers: { "Authorization": `Bearer ${insforgeToken}` }
         });
@@ -474,7 +512,7 @@ export default function IntegrationsPage() {
     setWaPairingCode("");
     setWaTimer(120);
 
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
 
     try {
       // ── 1. Check if already connected ──────────────────────────────────
@@ -535,7 +573,7 @@ export default function IntegrationsPage() {
   const handleConnectSandbox = async () => {
     setWaConnecting(true);
     setWaError("");
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
 
     try {
       const response = await fetch("/api/integrations/whatsapp/connect", {
@@ -578,7 +616,7 @@ export default function IntegrationsPage() {
   };
 
   const handleDisconnectWa = async () => {
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
     try {
       const response = await fetch("/api/integrations/whatsapp/disconnect", {
         method: "POST",
@@ -611,7 +649,7 @@ export default function IntegrationsPage() {
       setWaConnectOpen(true);
       return;
     }
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
     try {
       const response = await fetch("/api/integrations/whatsapp/connect", {
         method: "POST",
@@ -639,7 +677,7 @@ export default function IntegrationsPage() {
   const fetchWaTools = async () => {
     setLoadingWaTools(true);
     try {
-      const token = (insforge as any).tokenManager?.getAccessToken() || "";
+      const token = await getValidToken();
       const res = await fetch("/api/integrations/whatsapp/tools", {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -715,7 +753,7 @@ export default function IntegrationsPage() {
 
   const runDynamicWhatsAppTool = async (toolName: string, paramsList: any[]) => {
     setWaExecutingTool(toolName);
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
     const inputs = toolInputs[toolName] || {};
 
     for (const p of paramsList) {
@@ -772,7 +810,7 @@ export default function IntegrationsPage() {
 
   const handleExchangeOAuthCode = async (code: string) => {
     setExchangingCode(true);
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
     const redirectUri = window.location.origin + "/dashboard/integrations";
 
     try {
@@ -970,7 +1008,7 @@ export default function IntegrationsPage() {
   // Run Gmail MCP tool list call
   const fetchRealGmailMessages = async () => {
     setRunningToolName("gmail_list_messages");
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
 
     try {
       const response = await fetch("/api/integrations/gmail/messages", {
@@ -997,7 +1035,7 @@ export default function IntegrationsPage() {
   // Run Gmail MCP draft create call
   const createRealGmailDraft = async (to: string, subject: string, bodyText: string, threadId: string) => {
     setRunningToolName("gmail_create_draft");
-    const insforgeToken = (insforge as any).tokenManager?.getAccessToken() || "";
+    const insforgeToken = await getValidToken();
 
     try {
       const response = await fetch("/api/integrations/gmail/draft", {

@@ -60,6 +60,8 @@ next-env.d.ts
 .wa_sessions
 .wa_test_real/
 .wa_test_real
+.wa_test_pairing/
+.wa_test_pairing
 
 # Scratch/utility scripts
 check-all-tables.mjs
