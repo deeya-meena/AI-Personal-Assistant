@@ -1074,7 +1074,7 @@ export default function IntegrationsPage() {
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center space-y-4">
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-        <p className="text-zinc-500 dark:text-zinc-400 text-xs font-mono">
+        <p className="text-text-secondary text-xs font-mono">
           {exchangingCode ? "CONNECTING TO GOOGLE MAIL..." : "LOADING INSFORGE CHANNELS..."}
         </p>
       </div>
@@ -1086,12 +1086,12 @@ export default function IntegrationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b border-card-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-500 shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-500 shadow-md">
             <HugeiconsIcon icon={Layers01Icon} size={20} />
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-text-primary">Integrations Portal</h1>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">SECURE AGENT PIPELINES MANAGER</p>
+            <p className="text-xs text-text-secondary font-mono">SECURE AGENT PIPELINES MANAGER</p>
           </div>
         </div>
       </div>
@@ -1106,16 +1106,16 @@ export default function IntegrationsPage() {
           return (
             <div
               key={platform.id}
-              className={`glassmorphism rounded-3xl p-6 border transition-all duration-300 flex flex-col justify-between min-h-[300px] hover:scale-[1.02] ${
+              className={`glassmorphism rounded-3xl p-6 border transition-all duration-300 flex flex-col justify-between min-h-[300px] hover:scale-[1.02] shadow-sm ${
                 isConnected 
-                  ? "border-blue-500/30 shadow-[0_0_30px_rgba(59,130,246,0.08)] bg-zinc-50 dark:bg-zinc-950/20" 
-                  : "border-card-border hover:border-zinc-300 dark:hover:border-zinc-800 bg-zinc-50/20 dark:bg-zinc-950/5"
+                  ? "border-blue-500/30 bg-blue-500/5 dark:bg-blue-950/20 shadow-blue-500/10" 
+                  : "border-card-border hover:border-card-border/80 bg-card"
               }`}
             >
               {/* Card Top */}
               <div>
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-900/60 border border-card-border flex items-center justify-center shadow-lg">
+                  <div className="w-14 h-14 rounded-2xl bg-muted border border-card-border flex items-center justify-center shadow-md">
                     {platform.logo}
                   </div>
                   
@@ -1123,26 +1123,26 @@ export default function IntegrationsPage() {
                   <span
                     className={`px-3 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 ${
                       isConnected
-                        ? "bg-green-100/50 dark:bg-green-950/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20"
-                        : "bg-zinc-100 dark:bg-zinc-950/40 text-zinc-500 border border-card-border"
+                        ? "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20"
+                        : "bg-muted text-text-secondary border border-card-border"
                     }`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-green-500 animate-pulse" : "bg-zinc-650"}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-green-500 animate-pulse" : "bg-text-secondary"}`} />
                     {isConnected ? (isRealGmail ? "CONNECTED (REAL)" : "CONNECTED") : "DISCONNECTED"}
                   </span>
                 </div>
 
                 <h3 className="text-base font-extrabold text-text-primary mb-2">{platform.name}</h3>
-                <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed line-clamp-2">
+                <p className="text-xs text-text-secondary leading-relaxed line-clamp-2">
                   {platform.description}
                 </p>
               </div>
 
               {/* Sync status / Security info */}
-              <div className="my-4 bg-zinc-100/40 dark:bg-zinc-950/40 border border-card-border rounded-xl p-3.5 flex items-center justify-between text-xs font-mono">
+              <div className="my-4 bg-muted/40 border border-card-border rounded-xl p-3.5 flex items-center justify-between text-xs font-mono">
                 {isConnected ? (
                   <>
-                    <div className="flex items-center gap-1.5 text-zinc-500">
+                    <div className="flex items-center gap-1.5 text-text-secondary">
                       <HugeiconsIcon icon={ArrowUpDownIcon} size={12} className="text-blue-500" />
                       <span>Synced Events:</span>
                     </div>
@@ -1150,11 +1150,11 @@ export default function IntegrationsPage() {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1.5 text-zinc-500">
+                    <div className="flex items-center gap-1.5 text-text-secondary">
                       <Lock className="w-3.5 h-3.5" />
                       <span>Database link:</span>
                     </div>
-                    <span className="text-zinc-600 dark:text-zinc-500">Encrypted</span>
+                    <span className="text-text-secondary">Encrypted</span>
                   </>
                 )}
               </div>
@@ -1171,8 +1171,8 @@ export default function IntegrationsPage() {
                   }}
                   className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer text-center ${
                     isConnected
-                      ? "bg-zinc-200/60 dark:bg-zinc-900/60 hover:bg-zinc-300/60 dark:hover:bg-zinc-900 border border-card-border text-zinc-700 dark:text-zinc-400 hover:text-text-primary"
-                      : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-650 text-white shadow-lg shadow-blue-950/10"
+                      ? "bg-muted hover:bg-muted/80 border border-card-border text-text-secondary hover:text-text-primary"
+                      : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md"
                   }`}
                 >
                   {isConnected ? "Disconnect" : "Connect"}
@@ -1181,7 +1181,7 @@ export default function IntegrationsPage() {
                 {isConnected && (
                   <button
                     onClick={() => openSettings(platform)}
-                    className="p-3 rounded-xl border border-card-border hover:border-zinc-400 dark:hover:border-zinc-700 hover:bg-zinc-150 dark:hover:bg-zinc-900 bg-zinc-100/40 dark:bg-zinc-900/40 text-zinc-550 dark:text-zinc-400 hover:text-text-primary transition-all cursor-pointer flex items-center justify-center"
+                    className="p-3 rounded-xl border border-card-border hover:border-card-border/80 bg-card hover:bg-muted text-text-secondary hover:text-text-primary transition-all cursor-pointer flex items-center justify-center shadow-sm"
                     title="Platform MCP Settings"
                   >
                     <HugeiconsIcon icon={Settings01Icon} size={16} />
@@ -1195,29 +1195,29 @@ export default function IntegrationsPage() {
 
       {/* Settings Dialog Overlay */}
       {activeDialogPlatform && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/70 backdrop-blur-sm animate-fadeIn">
           <div 
-            className="w-full max-w-xl max-h-[80vh] bg-card-bg border border-card-border rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-xl max-h-[80vh] bg-card border border-card-border rounded-3xl shadow-2xl flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Dialog Header */}
-            <div className="border-b border-card-border p-6 flex justify-between items-center bg-zinc-100/10 dark:bg-zinc-900/20">
+            <div className="border-b border-card-border p-6 flex justify-between items-center bg-muted/30">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-card-border flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-card border border-card-border flex items-center justify-center shadow-sm">
                   {activeDialogPlatform.logo}
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
                     <span>{activeDialogPlatform.name} MCP Settings</span>
                   </h2>
-                  <p className="text-[10px] text-zinc-500 font-mono">
+                  <p className="text-[10px] text-text-secondary font-mono">
                     mcp-server: <span className="text-blue-500 font-bold">{activeDialogPlatform.mcpServerName}</span>
                   </p>
                 </div>
               </div>
               <button
                 onClick={closeSettings}
-                className="p-2 text-zinc-500 hover:text-text-primary hover:bg-zinc-100 dark:hover:bg-zinc-900 border border-transparent hover:border-card-border rounded-xl transition-all cursor-pointer text-xs font-bold font-mono"
+                className="p-2 text-text-secondary hover:text-text-primary hover:bg-muted border border-transparent hover:border-card-border rounded-xl transition-all cursor-pointer text-xs font-bold font-mono"
               >
                 ✕ Close
               </button>
@@ -1228,17 +1228,17 @@ export default function IntegrationsPage() {
               
               {/* Sandbox info disclaimer for Gmail */}
               {activeDialogPlatform.id === "gmail" && !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-500/25 rounded-2xl text-blue-800 dark:text-blue-400 text-xs leading-relaxed flex items-start gap-2.5">
+                <div className="p-3 bg-blue-500/10 border border-blue-500/25 rounded-2xl text-blue-700 dark:text-blue-400 text-xs leading-relaxed flex items-start gap-2.5">
                   <AlertCircle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold block mb-0.5">Aura Sandbox Connection Active</span>
-                    Gmail Google Client IDs are not yet configured in <code className="font-mono bg-blue-100 dark:bg-blue-950 px-1 py-0.5 rounded text-[10px]">.env.local</code>. Running securely inside the Next-Gen sandboxed simulator.
+                    Gmail Google Client IDs are not yet configured in <code className="font-mono bg-blue-500/20 px-1 py-0.5 rounded text-[10px]">.env.local</code>. Running securely inside the Next-Gen sandboxed simulator.
                   </div>
                 </div>
               )}
 
               <div>
-                <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <HugeiconsIcon icon={CodeIcon} size={14} className="text-blue-500" />
                   <span>Available MCP Tools ({activeDialogPlatform.mcpTools.length})</span>
                 </h4>
@@ -1257,8 +1257,8 @@ export default function IntegrationsPage() {
                         }}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold font-mono transition-all flex-shrink-0 cursor-pointer ${
                           activeWaCategory === cat
-                            ? "bg-blue-600 text-white shadow-md shadow-blue-950/20"
-                            : "bg-zinc-150 dark:bg-zinc-900 border border-card-border text-zinc-500 hover:text-text-primary"
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                            : "bg-muted border border-card-border text-text-secondary hover:text-text-primary"
                         }`}
                       >
                         {cat}
@@ -1269,7 +1269,7 @@ export default function IntegrationsPage() {
                   {loadingWaTools ? (
                     <div className="py-8 flex flex-col items-center justify-center space-y-2">
                       <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-                      <span className="text-[10px] text-zinc-550 font-mono">LOADING CAPABILITIES REGISTRY...</span>
+                      <span className="text-[10px] text-text-secondary font-mono">LOADING CAPABILITIES REGISTRY...</span>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -1280,14 +1280,14 @@ export default function IntegrationsPage() {
                         return (
                           <div 
                             key={tool.name}
-                            className="p-5 bg-zinc-100/50 dark:bg-zinc-900/30 border border-card-border rounded-3xl space-y-4 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors animate-fadeIn"
+                            className="p-5 bg-card border border-card-border rounded-3xl space-y-4 hover:border-card-border/80 transition-colors animate-fadeIn shadow-sm"
                           >
                             <div className="flex justify-between items-start">
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs font-extrabold text-blue-500 dark:text-blue-400 font-mono">{tool.name}</span>
+                                  <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400 font-mono">{tool.name}</span>
                                 </div>
-                                <p className="text-xs text-zinc-650 dark:text-zinc-400 leading-relaxed pr-6">{tool.description}</p>
+                                <p className="text-xs text-text-secondary leading-relaxed pr-6">{tool.description}</p>
                               </div>
 
                               {/* Toggle Switch */}
@@ -1299,14 +1299,14 @@ export default function IntegrationsPage() {
                                     onChange={() => toggleWaTool(tool.name, tool.enabled)}
                                     className="sr-only peer" 
                                   />
-                                  <div className="w-8 h-4.5 bg-zinc-200 dark:bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
+                                  <div className="w-8 h-4.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-card-border after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
                                 </label>
                               </div>
                             </div>
 
                             {/* Metadata & Execution logs */}
                             <div className="flex items-center justify-between text-[9px] font-mono border-t border-card-border/60 pt-2.5">
-                              <span className="text-zinc-550">
+                              <span className="text-text-secondary">
                                 Last Run: <span className="font-bold text-text-primary">
                                   {tool.lastExecuted 
                                     ? new Date(tool.lastExecuted).toLocaleString() 
@@ -1318,7 +1318,7 @@ export default function IntegrationsPage() {
                                 onClick={() => setExpandedWaTool(isExpanded ? null : tool.name)}
                                 className={`py-1 px-3 border rounded-xl text-[9px] font-extrabold transition-all cursor-pointer ${
                                   isExpanded 
-                                    ? "bg-zinc-200 dark:bg-zinc-900 border-zinc-400 text-text-primary" 
+                                    ? "bg-card border-card-border text-text-primary" 
                                     : "border-blue-500/30 hover:border-blue-500 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400"
                                 }`}
                               >
@@ -1328,19 +1328,19 @@ export default function IntegrationsPage() {
 
                             {/* Expanded Test Form */}
                             {isExpanded && (
-                              <div className="p-4 bg-zinc-50 dark:bg-black/40 border border-card-border rounded-2xl space-y-3.5 animate-fadeIn">
+                              <div className="p-4 bg-muted/40 border border-card-border rounded-2xl space-y-3.5 animate-fadeIn">
                                 <div className="text-[10px] font-bold text-text-primary uppercase tracking-wider font-mono">
                                   Run Parameters
                                 </div>
                                 {tool.params.length === 0 ? (
-                                  <div className="text-xs text-zinc-500 italic font-mono">No input parameters required for this tool.</div>
+                                  <div className="text-xs text-text-secondary italic font-mono">No input parameters required for this tool.</div>
                                 ) : (
                                   <div className="grid grid-cols-1 gap-3">
                                     {tool.params.map((p: any) => {
                                       const val = toolInputs[tool.name]?.[p.name] || '';
                                       return (
                                         <div key={p.name} className="space-y-1">
-                                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+                                          <label className="text-[9px] font-bold text-text-secondary uppercase tracking-wider font-mono">
                                             {p.label} {p.required && <span className="text-red-500">*</span>}
                                           </label>
                                           {p.type === 'textarea' ? (
@@ -1348,7 +1348,7 @@ export default function IntegrationsPage() {
                                               value={val}
                                               onChange={(e) => handleInputChange(tool.name, p.name, e.target.value)}
                                               placeholder={p.placeholder || `Enter ${p.label.toLowerCase()}...`}
-                                              className="w-full h-16 p-2.5 bg-zinc-100 dark:bg-black border border-card-border rounded-xl text-xs text-text-primary focus:border-blue-500 outline-none resize-none font-mono"
+                                              className="w-full h-16 p-2.5 bg-card border border-card-border rounded-xl text-xs text-text-primary focus:border-blue-500 outline-none resize-none font-mono shadow-sm"
                                             />
                                           ) : p.type === 'boolean' ? (
                                             <div className="flex items-center gap-2">
@@ -1356,9 +1356,9 @@ export default function IntegrationsPage() {
                                                 type="checkbox"
                                                 checked={!!val}
                                                 onChange={(e) => handleInputChange(tool.name, p.name, e.target.checked)}
-                                                className="w-4 h-4 bg-zinc-150 border border-card-border rounded"
+                                                className="w-4 h-4 bg-card border border-card-border rounded"
                                               />
-                                              <span className="text-xs text-zinc-500">Toggle True/False</span>
+                                              <span className="text-xs text-text-secondary">Toggle True/False</span>
                                             </div>
                                           ) : (
                                             <input
@@ -1366,7 +1366,7 @@ export default function IntegrationsPage() {
                                               value={val}
                                               onChange={(e) => handleInputChange(tool.name, p.name, p.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
                                               placeholder={p.placeholder || `Enter ${p.label.toLowerCase()}...`}
-                                              className="w-full p-2.5 bg-zinc-100 dark:bg-black border border-card-border rounded-xl text-xs text-text-primary focus:border-blue-500 outline-none font-mono"
+                                              className="w-full p-2.5 bg-card border border-card-border rounded-xl text-xs text-text-primary focus:border-blue-500 outline-none font-mono shadow-sm"
                                             />
                                           )}
                                         </div>
@@ -1416,8 +1416,8 @@ export default function IntegrationsPage() {
                                     Clear Log
                                   </button>
                                 </div>
-                                <div className="bg-zinc-50 dark:bg-black/40 border border-card-border rounded-2xl p-4 overflow-x-auto max-h-[300px] text-xs font-mono select-text leading-relaxed">
-                                  <pre className="text-zinc-650 dark:text-zinc-400 whitespace-pre-wrap">{JSON.stringify(waExecutionOutputs[tool.name], null, 2)}</pre>
+                                <div className="bg-muted/40 border border-card-border rounded-2xl p-4 overflow-x-auto max-h-[300px] text-xs font-mono select-text leading-relaxed">
+                                  <pre className="text-text-secondary whitespace-pre-wrap">{JSON.stringify(waExecutionOutputs[tool.name], null, 2)}</pre>
                                 </div>
                               </div>
                             )}
@@ -1437,15 +1437,15 @@ export default function IntegrationsPage() {
                     return (
                       <div 
                         key={tool.name} 
-                        className="p-4 bg-zinc-100/50 dark:bg-zinc-900/30 border border-card-border rounded-2xl space-y-2 hover:border-zinc-400 dark:hover:border-zinc-700 transition-colors"
+                        className="p-4 bg-card border border-card-border rounded-2xl space-y-2 hover:border-card-border/80 transition-colors shadow-sm"
                       >
                         <div className="flex justify-between items-center">
-                          <span className="text-xs font-extrabold text-blue-500 dark:text-blue-400 font-mono">{tool.name}</span>
+                          <span className="text-xs font-extrabold text-blue-600 dark:text-blue-400 font-mono">{tool.name}</span>
                           {isRunAvailable && isListTool && gmailMessages.length === 0 && (
                             <button
                               onClick={fetchRealGmailMessages}
                               disabled={runningToolName !== null}
-                              className="text-[10px] font-bold font-mono px-3 py-1 rounded-lg border border-blue-500/30 hover:border-blue-500 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 transition-all cursor-pointer flex items-center gap-1.5"
+                              className="text-[10px] font-bold font-mono px-3 py-1 rounded-lg border border-blue-500/30 hover:border-blue-500 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                             >
                               {runningToolName === tool.name ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -1456,21 +1456,21 @@ export default function IntegrationsPage() {
                             </button>
                           )}
                         </div>
-                        <p className="text-xs text-zinc-650 dark:text-zinc-400 leading-relaxed">{tool.description}</p>
+                        <p className="text-xs text-text-secondary leading-relaxed">{tool.description}</p>
                         
                         {/* JSON Schema */}
                         <div className="pt-2 border-t border-card-border/60">
-                          <span className="text-[10px] text-zinc-500 font-mono block">SCHEMA: {tool.params}</span>
+                          <span className="text-[10px] text-text-secondary font-mono block">SCHEMA: {tool.params}</span>
                         </div>
 
                         {/* Tool run outputs rendered inline under the tool! */}
                         {isListTool && gmailMessages.length > 0 && (
                         <div className="mt-4 pt-3 border-t border-card-border space-y-3">
                           <div className="flex justify-between items-center">
-                            <span className="text-[10px] text-zinc-500 font-mono uppercase">Tool Output (Inbox messages)</span>
+                            <span className="text-[10px] text-text-secondary font-mono uppercase">Tool Output (Inbox messages)</span>
                             <button
                               onClick={() => setGmailMessages([])}
-                              className="text-[10px] text-zinc-500 hover:text-text-primary font-mono cursor-pointer"
+                              className="text-[10px] text-text-secondary hover:text-text-primary font-mono cursor-pointer"
                             >
                               Hide
                             </button>
@@ -1481,43 +1481,43 @@ export default function IntegrationsPage() {
                               <div 
                                 key={email.id}
                                 onClick={() => setSelectedEmail(email)}
-                                className={`p-3 border rounded-xl transition-all cursor-pointer flex justify-between items-start gap-4 ${
+                                className={`p-3 border rounded-xl transition-all cursor-pointer flex justify-between items-start gap-4 shadow-sm ${
                                   selectedEmail?.id === email.id 
-                                    ? "bg-blue-500/5 border-blue-500/40" 
-                                    : "bg-zinc-100 dark:bg-black/40 border-card-border hover:border-zinc-400 dark:hover:border-zinc-700"
+                                    ? "bg-blue-500/10 border-blue-500/40" 
+                                    : "bg-card border-card-border hover:bg-muted/50"
                                 }`}
                               >
                                 <div className="space-y-0.5 truncate flex-1">
                                   <div className="flex items-center gap-1.5">
                                     <span className="text-xs font-bold text-text-primary truncate">{email.senderName}</span>
-                                    <span className="text-[9px] text-zinc-500 font-mono truncate">{email.senderEmail}</span>
+                                    <span className="text-[9px] text-text-secondary font-mono truncate">{email.senderEmail}</span>
                                   </div>
-                                  <div className="text-xs font-semibold text-blue-500 dark:text-blue-400 truncate">{email.subject}</div>
-                                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate font-mono">{email.snippet}</div>
+                                  <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">{email.subject}</div>
+                                  <div className="text-[10px] text-text-secondary truncate font-mono">{email.snippet}</div>
                                 </div>
-                                <span className="text-[9px] text-zinc-500 font-mono flex-shrink-0 whitespace-nowrap">{email.date.split(" ")[2]}</span>
+                                <span className="text-[9px] text-text-secondary font-mono flex-shrink-0 whitespace-nowrap">{email.date.split(" ")[2]}</span>
                               </div>
                             ))}
                           </div>
 
                           {/* Render selected message inline next to it */}
                           {selectedEmail && (
-                            <div className="p-4 bg-zinc-50 dark:bg-black/60 border border-card-border rounded-xl space-y-3 animate-fadeIn">
+                            <div className="p-4 bg-muted/40 border border-card-border rounded-xl space-y-3 animate-fadeIn">
                               <div className="flex justify-between items-center pb-1.5 border-b border-card-border/60">
-                                <span className="text-[10px] text-zinc-500 font-mono">{selectedEmail.date}</span>
+                                <span className="text-[10px] text-text-secondary font-mono">{selectedEmail.date}</span>
                                 <button 
                                   onClick={() => {
                                     setSelectedEmail(null);
                                     setReplyText("");
                                   }}
-                                  className="text-[10px] text-zinc-500 hover:text-text-primary cursor-pointer font-mono"
+                                  className="text-[10px] text-text-secondary hover:text-text-primary cursor-pointer font-mono"
                                 >
                                   ✕ Close Email
                                 </button>
                               </div>
                               <div className="space-y-1">
                                 <div className="text-xs text-text-primary font-bold">{selectedEmail.subject}</div>
-                                <p className="text-[10px] text-zinc-650 dark:text-zinc-400 font-mono whitespace-pre-line leading-relaxed">
+                                <p className="text-[10px] text-text-secondary font-mono whitespace-pre-line leading-relaxed">
                                   {selectedEmail.body}
                                 </p>
                               </div>
@@ -1528,10 +1528,10 @@ export default function IntegrationsPage() {
                                   value={replyText}
                                   onChange={(e) => setReplyText(e.target.value)}
                                   placeholder="Type reply draft content..."
-                                  className="w-full h-16 p-2 bg-zinc-100 dark:bg-black border border-card-border rounded-lg text-xs text-text-primary placeholder-zinc-500 focus:border-blue-500/50 outline-none resize-none font-mono"
+                                  className="w-full h-16 p-2 bg-card border border-card-border rounded-lg text-xs text-text-primary placeholder-text-secondary focus:border-blue-500/50 outline-none resize-none font-mono shadow-sm"
                                 />
                                 {draftSuccessMessage && (
-                                  <div className="p-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-500/25 rounded-lg text-green-700 dark:text-green-400 text-[10px] flex items-center gap-1.5">
+                                  <div className="p-2 bg-green-500/10 border border-green-500/25 rounded-lg text-green-600 dark:text-green-400 text-[10px] flex items-center gap-1.5">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                                     <span>{draftSuccessMessage}</span>
                                   </div>
@@ -1542,14 +1542,14 @@ export default function IntegrationsPage() {
                                       setSelectedEmail(null);
                                       setReplyText("");
                                     }}
-                                    className="px-3 py-1.5 border border-card-border hover:border-zinc-400 dark:hover:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-text-primary rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                    className="px-3 py-1.5 border border-card-border hover:bg-muted text-text-secondary hover:text-text-primary rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                                   >
                                     Cancel
                                   </button>
                                   <button
                                     onClick={() => createRealGmailDraft(selectedEmail.senderEmail, `Re: ${selectedEmail.subject}`, replyText, selectedEmail.id)}
                                     disabled={!replyText.trim() || runningToolName !== null}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer shadow-sm"
                                   >
                                     {runningToolName === "gmail_create_draft" ? (
                                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -1578,20 +1578,20 @@ export default function IntegrationsPage() {
 
       {/* WhatsApp Connection Dialog Overlay */}
       {waConnectOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/70 backdrop-blur-sm animate-fadeIn">
           <div 
-            className="w-full max-w-md bg-card-bg border border-card-border rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            className="w-full max-w-md bg-card border border-card-border rounded-3xl shadow-2xl overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="border-b border-card-border p-6 flex justify-between items-center bg-zinc-100/10 dark:bg-zinc-900/20">
+            <div className="border-b border-card-border p-6 flex justify-between items-center bg-muted/30">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-card-border flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-card border border-card-border flex items-center justify-center shadow-sm">
                   <WhatsAppIcon />
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-text-primary">Connect WhatsApp Account</h2>
-                  <p className="text-[10px] text-zinc-500 font-mono">LINK DEVICE VIA PAIRING CODE</p>
+                  <p className="text-[10px] text-text-secondary font-mono">LINK DEVICE VIA PAIRING CODE</p>
                 </div>
               </div>
               <button
@@ -1599,7 +1599,7 @@ export default function IntegrationsPage() {
                   setWaConnectOpen(false);
                   setIsPollingWa(false);
                 }}
-                className="p-2 text-zinc-500 hover:text-text-primary font-mono text-xs cursor-pointer"
+                className="p-2 text-text-secondary hover:text-text-primary font-mono text-xs cursor-pointer"
               >
                 ✕
               </button>
@@ -1608,7 +1608,7 @@ export default function IntegrationsPage() {
             {/* Content Form / Linking Code display */}
             <div className="p-6 space-y-4">
               {waError && (
-                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-500/25 rounded-2xl text-red-700 dark:text-red-400 text-xs flex items-start gap-2">
+                <div className="p-3 bg-red-500/10 border border-red-500/25 rounded-2xl text-red-600 dark:text-red-400 text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>{waError}</span>
                 </div>
@@ -1623,27 +1623,27 @@ export default function IntegrationsPage() {
                   className="space-y-4"
                 >
                   <div className="space-y-1">
-                    <p className="text-xs text-zinc-650 dark:text-zinc-400 leading-relaxed font-sans">
+                    <p className="text-xs text-text-secondary leading-relaxed font-sans">
                       To connect your personal WhatsApp account, enter your phone number starting with your country code (e.g., <span className="font-mono font-bold text-blue-500">+15550199</span>).
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label htmlFor="wa-phone" className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-mono">Phone Number</label>
+                    <label htmlFor="wa-phone" className="text-xs font-bold text-text-secondary uppercase tracking-wider font-mono">Phone Number</label>
                     <input
                       id="wa-phone"
                       type="text"
                       placeholder="e.g. +15550199"
                       value={waPhoneNumber}
                       onChange={(e) => setWaPhoneNumber(e.target.value)}
-                      className="w-full p-3 bg-zinc-100 dark:bg-black border border-card-border rounded-xl text-xs text-text-primary focus:border-blue-500 outline-none font-mono"
+                      className="w-full p-3 bg-card border border-card-border rounded-xl text-xs text-text-primary focus:border-blue-500 outline-none font-mono shadow-sm"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={waConnecting}
-                    className="w-full py-3 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-650 shadow-lg cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-md cursor-pointer flex items-center justify-center gap-2"
                   >
                     {waConnecting ? (
                       <>
@@ -1658,7 +1658,7 @@ export default function IntegrationsPage() {
                   <button
                     type="button"
                     onClick={handleConnectSandbox}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all border border-card-border text-zinc-500 hover:bg-zinc-200/50 hover:text-text-primary flex items-center justify-center gap-2"
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all border border-card-border text-text-secondary hover:bg-muted hover:text-text-primary flex items-center justify-center gap-2 shadow-sm"
                   >
                     Connect in Simulated Mode
                   </button>
@@ -1666,15 +1666,15 @@ export default function IntegrationsPage() {
               ) : (
                 <div className="space-y-5 text-center animate-fadeIn">
                   <div className="space-y-1">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider font-mono block">Linking Code</span>
-                    <div className="flex justify-center gap-1.5 font-mono font-extrabold text-2xl text-blue-500 tracking-widest bg-zinc-100/50 dark:bg-zinc-900/30 p-4 border border-card-border rounded-2xl select-all">
+                    <span className="text-xs font-bold text-text-secondary uppercase tracking-wider font-mono block">Linking Code</span>
+                    <div className="flex justify-center gap-1.5 font-mono font-extrabold text-2xl text-blue-500 tracking-widest bg-muted/40 p-4 border border-card-border rounded-2xl select-all">
                       {waPairingCode.split("").map((char, index) => (
-                        <span key={index} className={index === 4 ? "mx-2 text-zinc-400" : ""}>{char}</span>
+                        <span key={index} className={index === 4 ? "mx-2 text-text-secondary" : ""}>{char}</span>
                       ))}
                     </div>
 
                     {/* Expiry countdown */}
-                    <div className="text-[10px] text-zinc-500 font-mono mt-2">
+                    <div className="text-[10px] text-text-secondary font-mono mt-2">
                       {waTimer > 0 ? (
                         <>
                           Expires in: <span className="font-bold text-blue-500">{Math.floor(waTimer / 60)}:{(waTimer % 60).toString().padStart(2, '0')}</span>
@@ -1685,13 +1685,13 @@ export default function IntegrationsPage() {
                     </div>
                   </div>
 
-                  <div className="text-left bg-zinc-100/40 dark:bg-zinc-950/40 border border-card-border p-4 rounded-2xl space-y-2.5 text-xs text-zinc-500 font-sans">
+                  <div className="text-left bg-muted/40 border border-card-border p-4 rounded-2xl space-y-2.5 text-xs text-text-secondary font-sans">
                     <div className="font-bold text-text-primary">How to link:</div>
                     <ol className="list-decimal list-inside space-y-1.5 font-mono text-[11px] leading-relaxed">
-                      <li>Open <span className="font-bold">WhatsApp</span> on your phone.</li>
-                      <li>Tap <span className="font-bold">Settings</span> → <span className="font-bold">Linked Devices</span>.</li>
-                      <li>Tap <span className="font-bold">Link a Device</span>.</li>
-                      <li>Select <span className="font-bold">Link with phone number instead</span>.</li>
+                      <li>Open <span className="font-bold text-text-primary">WhatsApp</span> on your phone.</li>
+                      <li>Tap <span className="font-bold text-text-primary">Settings</span> → <span className="font-bold text-text-primary">Linked Devices</span>.</li>
+                      <li>Tap <span className="font-bold text-text-primary">Link a Device</span>.</li>
+                      <li>Select <span className="font-bold text-text-primary">Link with phone number instead</span>.</li>
                       <li>Enter the 8-character code shown above.</li>
                     </ol>
                   </div>
@@ -1699,7 +1699,7 @@ export default function IntegrationsPage() {
                   <div className="flex justify-center gap-2">
                     <button
                       onClick={handleWaRefreshCode}
-                      className="py-2 px-3 border border-card-border rounded-xl text-xs font-bold font-mono text-zinc-550 hover:bg-zinc-200/50 hover:text-text-primary flex items-center gap-1.5"
+                      className="py-2 px-3 border border-card-border rounded-xl text-xs font-bold font-mono text-text-secondary hover:bg-muted hover:text-text-primary flex items-center gap-1.5 cursor-pointer shadow-sm"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                       <span>Refresh Code</span>
@@ -1709,13 +1709,13 @@ export default function IntegrationsPage() {
                         setWaPairingCode("");
                         setIsPollingWa(false);
                       }}
-                      className="py-2 px-3 border border-card-border rounded-xl text-xs font-bold font-mono text-zinc-550 hover:bg-zinc-200/50 hover:text-text-primary"
+                      className="py-2 px-3 border border-card-border rounded-xl text-xs font-bold font-mono text-text-secondary hover:bg-muted hover:text-text-primary cursor-pointer shadow-sm"
                     >
                       Cancel
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-center gap-2 text-xs font-mono text-zinc-550">
+                  <div className="flex items-center justify-center gap-2 text-xs font-mono text-text-secondary">
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
                     <span>Waiting for device connection...</span>
                   </div>

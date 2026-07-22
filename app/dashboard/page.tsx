@@ -106,6 +106,7 @@ interface BriefItem {
   sender: string;
   summary: string;
   time: string;
+  recipientJid?: string;
 }
 
 interface PriorityItem {
@@ -357,45 +358,45 @@ export default function DashboardPage() {
       
       {/* Demo Mode Notice Banner */}
       {hasDemoMode && (
-        <div className="flex items-center gap-3.5 p-4 rounded-2xl border border-amber-500/20 bg-amber-950/20 text-amber-300 text-xs">
-          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 animate-bounce" />
+        <div className="flex items-center gap-3.5 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 animate-bounce" />
           <div className="flex-1">
-            <span className="font-bold">Aura Demo Mode:</span> Connect your <code className="bg-amber-900/40 px-1 py-0.5 rounded font-mono font-semibold text-amber-200">GEMINI_API_KEY</code> in <code className="bg-amber-900/40 px-1 py-0.5 rounded font-mono font-semibold text-amber-200">.env.local</code> to enable real-time Gemini AI workspace synthesis.
+            <span className="font-bold">Aura Demo Mode:</span> Connect your <code className="bg-amber-500/20 dark:bg-amber-900/40 px-1 py-0.5 rounded font-mono font-semibold text-amber-800 dark:text-amber-200">GEMINI_API_KEY</code> in <code className="bg-amber-500/20 dark:bg-amber-900/40 px-1 py-0.5 rounded font-mono font-semibold text-amber-800 dark:text-amber-200">.env.local</code> to enable real-time Gemini AI workspace synthesis.
           </div>
         </div>
       )}
 
       {/* Hero Welcome Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-zinc-800/60 bg-gradient-to-br from-zinc-950 via-zinc-900/80 to-violet-950/20 p-7 md:p-8">
+      <div className="relative overflow-hidden rounded-3xl border border-card-border bg-gradient-to-br from-violet-500/10 via-card to-indigo-500/10 dark:from-zinc-950 dark:via-zinc-900/80 dark:to-violet-950/20 p-7 md:p-8 shadow-md">
         <div className="absolute top-4 right-4 z-10 flex gap-2">
           {/* Refresh / Regenerate button */}
           <button
             onClick={handleRegenerate}
             disabled={regenerating || loadingBrief || loadingPriority}
-            className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 hover:text-white px-4 py-2.5 text-xs font-semibold shadow transition-all cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl border border-card-border bg-card hover:bg-muted text-text-primary px-4 py-2.5 text-xs font-semibold shadow-sm transition-all cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${regenerating ? "animate-spin text-accent-violet" : ""}`} />
             {regenerating ? "Regenerating..." : "Regenerate Brief"}
           </button>
         </div>
 
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-[11px] font-mono tracking-widest text-green-400 uppercase">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-[11px] font-mono tracking-widest text-green-600 dark:text-green-400 uppercase">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
           Aura Connected &amp; Synthesizing
         </div>
 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 max-w-4xl">
           <div>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-text-primary leading-tight">
               Welcome back,{" "}
-              <span className="bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 dark:from-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
                 {fullName}
               </span>
             </h1>
-            <p className="mt-3 text-sm text-zinc-400 leading-relaxed font-medium">
+            <p className="mt-3 text-sm text-text-secondary leading-relaxed font-medium">
               {loadingBrief ? (
-                <span className="flex items-center gap-2 text-zinc-500">
-                  <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+                <span className="flex items-center gap-2 text-text-secondary">
+                  <Loader2 className="w-4 h-4 text-violet-500 animate-spin" />
                   Analyzing inbox activity and workspace items...
                 </span>
               ) : (
@@ -413,20 +414,20 @@ export default function DashboardPage() {
         {metrics.map((m) => (
           <div
             key={m.label}
-            className="rounded-2xl border border-zinc-800/60 bg-zinc-950/50 p-5 flex items-center justify-between gap-4 hover:border-zinc-700/60 transition-colors"
+            className="rounded-2xl border border-card-border bg-card p-5 flex items-center justify-between gap-4 hover:border-card-border/80 transition-all shadow-sm"
           >
             <div className="space-y-1">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-text-secondary font-bold">
                 {m.label}
               </p>
-              <p className="text-3xl font-extrabold text-white">
+              <p className="text-3xl font-extrabold text-text-primary">
                 {loadingBrief ? (
-                  <span className="inline-block w-8 h-8 rounded bg-zinc-800/60 animate-pulse" />
+                  <span className="inline-block w-8 h-8 rounded bg-muted animate-pulse" />
                 ) : (
                   m.value
                 )}
               </p>
-              <p className="text-[11px] text-zinc-500 font-medium">{m.sub}</p>
+              <p className="text-[11px] text-text-secondary font-medium">{m.sub}</p>
             </div>
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${m.iconBg}`}>
               <m.icon className="w-5 h-5" />
@@ -439,42 +440,42 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Today's Brief Card */}
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-950/40 overflow-hidden flex flex-col min-h-[380px]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60 bg-zinc-950/60">
+        <div className="rounded-2xl border border-card-border bg-card overflow-hidden flex flex-col min-h-[380px] shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-card-border bg-muted/50">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-cyan-600/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 flex items-center justify-center">
                 <HugeiconsIcon icon={BookOpen01Icon} size={14} />
               </div>
-              <h2 className="text-xs font-bold text-white uppercase tracking-wider">Today&apos;s Brief</h2>
+              <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider">Today&apos;s Brief</h2>
             </div>
-            <button className="text-[10px] font-bold text-zinc-550 hover:text-white uppercase tracking-wider transition-colors cursor-pointer">
+            <button className="text-[10px] font-bold text-text-secondary hover:text-text-primary uppercase tracking-wider transition-colors cursor-pointer">
               View all
             </button>
           </div>
 
           {loadingBrief ? (
             <div className="p-8 flex-1 flex flex-col items-center justify-center space-y-3">
-              <Loader2 className="w-7 h-7 text-cyan-400 animate-spin" />
-              <p className="text-[11px] text-zinc-550 font-medium">Compiling feed...</p>
+              <Loader2 className="w-7 h-7 text-cyan-500 animate-spin" />
+              <p className="text-[11px] text-text-secondary font-medium">Compiling feed...</p>
             </div>
           ) : errorMsg ? (
-            <div className="p-6 text-center text-rose-400 text-xs font-semibold flex-1 flex items-center justify-center">
+            <div className="p-6 text-center text-rose-500 text-xs font-semibold flex-1 flex items-center justify-center">
               {errorMsg}
             </div>
           ) : !briefData?.briefs || briefData.briefs.length === 0 ? (
-            <div className="p-8 text-center text-zinc-550 text-xs flex-1 flex items-center justify-center">
+            <div className="p-8 text-center text-text-secondary text-xs flex-1 flex items-center justify-center">
               No active briefing feed items. Connect apps to begin.
             </div>
           ) : (
             <div className="p-4 space-y-4 overflow-y-auto flex-1 max-h-[300px]">
               {briefData.briefs.map((brief) => (
                 <div key={brief.id} className="flex gap-3 items-start group">
-                  <div className="mt-2 w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0 animate-pulse" />
+                  <div className="mt-2 w-1.5 h-1.5 rounded-full bg-violet-500 flex-shrink-0 animate-pulse" />
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold text-zinc-200 group-hover:text-white transition-colors block leading-tight truncate">
+                    <span className="text-xs font-bold text-text-primary group-hover:text-accent-violet transition-colors block leading-tight truncate">
                       {brief.title}
                     </span>
-                    <span className="text-[10.5px] text-zinc-500 block mt-0.5 font-medium leading-relaxed">
+                    <span className="text-[10.5px] text-text-secondary block mt-0.5 font-medium leading-relaxed">
                       {brief.summary} • {brief.sender}
                     </span>
                   </div>
@@ -488,17 +489,17 @@ export default function DashboardPage() {
         </div>
 
         {/* Connected Apps Card */}
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-950/40 overflow-hidden flex flex-col min-h-[380px]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60 bg-zinc-950/60">
+        <div className="rounded-2xl border border-card-border bg-card overflow-hidden flex flex-col min-h-[380px] shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-card-border bg-muted/50">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/20 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center">
                 <HugeiconsIcon icon={Layers01Icon} size={14} />
               </div>
-              <h2 className="text-xs font-bold text-white uppercase tracking-wider">Connected Apps</h2>
+              <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider">Connected Apps</h2>
             </div>
             <button
               onClick={() => router.push("/dashboard/integrations")}
-              className="text-[10px] font-bold text-zinc-550 hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
+              className="text-[10px] font-bold text-text-secondary hover:text-text-primary uppercase tracking-wider transition-colors cursor-pointer"
             >
               Manage
             </button>
@@ -512,21 +513,21 @@ export default function DashboardPage() {
               return (
                 <div
                   key={app.id}
-                  className="flex flex-col justify-between p-3.5 rounded-2xl border border-zinc-900 bg-zinc-950/30 hover:border-zinc-850 hover:bg-zinc-900/10 transition-all cursor-pointer"
+                  className="flex flex-col justify-between p-3.5 rounded-2xl border border-card-border bg-muted/30 hover:border-accent-violet/40 hover:bg-muted/70 transition-all cursor-pointer shadow-sm"
                   onClick={() => router.push("/dashboard/integrations")}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-xl bg-zinc-900 flex items-center justify-center border border-zinc-800/60">
+                    <div className="w-8 h-8 rounded-xl bg-card flex items-center justify-center border border-card-border shadow-sm">
                       <PlatformIcon platformId={app.id} className="w-4.5 h-4.5" />
                     </div>
                     {isConnected && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500/20" />
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-zinc-200 leading-tight mb-0.5">{app.name}</p>
+                    <p className="text-xs font-bold text-text-primary leading-tight mb-0.5">{app.name}</p>
                     <span className={`text-[10px] font-bold ${
-                      isConnected ? "text-emerald-500/90" : "text-zinc-650"
+                      isConnected ? "text-emerald-600 dark:text-emerald-400" : "text-text-secondary"
                     }`}>
                       {isConnected ? "Connected" : "Disconnected"}
                     </span>
@@ -538,52 +539,52 @@ export default function DashboardPage() {
         </div>
 
         {/* Priority Focus Items Card */}
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-950/40 overflow-hidden flex flex-col min-h-[380px]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/60 bg-zinc-950/60">
+        <div className="rounded-2xl border border-card-border bg-card overflow-hidden flex flex-col min-h-[380px] shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-card-border bg-muted/50">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-rose-600/20 text-rose-400 border border-rose-500/20 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-rose-600/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center">
                 <Flame className="w-4 h-4" />
               </div>
-              <h2 className="text-xs font-bold text-white uppercase tracking-wider">Priority Items</h2>
+              <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider">Priority Items</h2>
             </div>
-            <button className="text-[10px] font-bold text-zinc-550 hover:text-white uppercase tracking-wider transition-colors cursor-pointer">
+            <button className="text-[10px] font-bold text-text-secondary hover:text-text-primary uppercase tracking-wider transition-colors cursor-pointer">
               View all
             </button>
           </div>
 
           {loadingPriority ? (
             <div className="p-8 flex-1 flex flex-col items-center justify-center space-y-3">
-              <Loader2 className="w-7 h-7 text-rose-400 animate-spin" />
-              <p className="text-[11px] text-zinc-550 font-medium">Extracting tasks...</p>
+              <Loader2 className="w-7 h-7 text-rose-500 animate-spin" />
+              <p className="text-[11px] text-text-secondary font-medium">Extracting tasks...</p>
             </div>
           ) : errorPriority ? (
-            <div className="p-6 text-center text-rose-400 text-xs font-semibold flex-1 flex items-center justify-center">
+            <div className="p-6 text-center text-rose-500 text-xs font-semibold flex-1 flex items-center justify-center">
               {errorPriority}
             </div>
           ) : !priorityData?.priorityItems || priorityData.priorityItems.length === 0 ? (
-            <div className="p-8 text-center text-zinc-550 text-xs flex-1 flex items-center justify-center">
+            <div className="p-8 text-center text-text-secondary text-xs flex-1 flex items-center justify-center">
               No high-priority task items extracted today.
             </div>
           ) : (
             <div className="p-4 space-y-3 overflow-y-auto flex-1 max-h-[300px]">
               {priorityData.priorityItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-zinc-900/40 bg-zinc-950/20 hover:border-zinc-850 transition-all">
+                <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-card-border bg-muted/20 hover:border-card-border/80 transition-all shadow-sm">
                   <div className="flex-shrink-0">
-                    <div className="w-7 h-7 rounded-lg bg-zinc-900/80 border border-zinc-800/60 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-card border border-card-border flex items-center justify-center shadow-sm">
                       <PlatformIcon platformId={item.source} className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   <div className="flex-1 min-w-0 flex items-center justify-between gap-3">
                     <div>
-                      <span className="text-xs font-bold text-zinc-200 block truncate leading-tight">
+                      <span className="text-xs font-bold text-text-primary block truncate leading-tight">
                         {item.title}
                       </span>
-                      <span className="text-[10px] text-zinc-550 block font-medium truncate mt-0.5">
+                      <span className="text-[10px] text-text-secondary block font-medium truncate mt-0.5">
                         {item.description}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[9.5px] text-zinc-550 font-mono font-semibold">{item.time}</span>
+                      <span className="text-[9.5px] text-text-secondary font-mono font-semibold">{item.time}</span>
                       <span className={`w-1.5 h-1.5 rounded-full ${
                         item.priority === "high"
                           ? "bg-rose-500 shadow-sm shadow-rose-500/50"
@@ -602,14 +603,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick AI Suggestion & Ask Aura Box */}
-      <div className="rounded-3xl border border-zinc-800/60 bg-gradient-to-r from-zinc-950 via-zinc-900/40 to-violet-950/10 p-6 space-y-4">
+      <div className="rounded-3xl border border-card-border bg-gradient-to-r from-card via-muted/30 to-violet-500/10 p-6 space-y-4 shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+            <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
               Ask Aura AI Assistant
             </h3>
-            <p className="text-[11px] text-zinc-550 font-medium">Ask questions about your daily schedule, connected integrations, or how to use Aura.</p>
+            <p className="text-[11px] text-text-secondary font-medium">Ask questions about your daily schedule, connected integrations, or how to use Aura.</p>
           </div>
           
           {/* Quick Suggestions */}
@@ -623,7 +624,7 @@ export default function DashboardPage() {
                 key={s.label}
                 onClick={() => handleAskAura(s.query)}
                 disabled={loadingAnswer}
-                className="text-[10px] font-bold text-zinc-400 hover:text-white border border-zinc-800 bg-zinc-950/60 hover:bg-zinc-900 px-3 py-1.5 rounded-full transition-all cursor-pointer disabled:opacity-50"
+                className="text-[10px] font-bold text-text-secondary hover:text-text-primary border border-card-border bg-card hover:bg-muted px-3 py-1.5 rounded-full transition-all cursor-pointer disabled:opacity-50 shadow-sm"
               >
                 {s.label}
               </button>
@@ -637,7 +638,7 @@ export default function DashboardPage() {
             e.preventDefault();
             handleAskAura();
           }}
-          className="flex items-center gap-3 bg-zinc-950/60 border border-zinc-850 focus-within:border-violet-500/50 rounded-2xl p-2.5 transition-all"
+          className="flex items-center gap-3 bg-card border border-card-border focus-within:border-accent-violet rounded-2xl p-2.5 transition-all shadow-sm"
         >
           <input
             type="text"
@@ -645,12 +646,12 @@ export default function DashboardPage() {
             onChange={(e) => setQuestion(e.target.value)}
             disabled={loadingAnswer}
             placeholder="Type a question (e.g., Do I have any meetings today?)..."
-            className="flex-1 bg-transparent border-0 outline-none text-xs text-zinc-200 placeholder-zinc-650 px-2"
+            className="flex-1 bg-transparent border-0 outline-none text-xs text-text-primary placeholder-text-secondary px-2"
           />
           <button
             type="submit"
             disabled={loadingAnswer || !question.trim()}
-            className="rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs px-4 py-2 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+            className="rounded-xl bg-accent-violet hover:bg-accent-violet/90 text-white font-bold text-xs px-4 py-2 flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
           >
             {loadingAnswer ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -662,21 +663,21 @@ export default function DashboardPage() {
 
         {/* AI Answer Display */}
         {(aiAnswer || loadingAnswer) && (
-          <div className="rounded-2xl border border-violet-950/40 bg-violet-950/5 p-4 transition-all">
+          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4 transition-all">
             <div className="flex gap-3">
-              <div className="w-7 h-7 rounded-lg bg-violet-600/20 text-violet-400 border border-violet-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="w-7 h-7 rounded-lg bg-violet-600/20 text-violet-600 dark:text-violet-400 border border-violet-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span className="text-[11px] font-extrabold font-mono">A</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-mono text-zinc-550 uppercase tracking-wider font-bold mb-1">Aura Response</p>
+                <p className="text-[10px] font-mono text-text-secondary uppercase tracking-wider font-bold mb-1">Aura Response</p>
                 {loadingAnswer ? (
                   <div className="flex items-center gap-2 py-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce delay-75" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce delay-150" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce delay-75" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce delay-150" />
                   </div>
                 ) : (
-                  <p className="text-xs text-zinc-300 leading-relaxed font-medium">{aiAnswer}</p>
+                  <p className="text-xs text-text-primary leading-relaxed font-medium">{aiAnswer}</p>
                 )}
               </div>
             </div>

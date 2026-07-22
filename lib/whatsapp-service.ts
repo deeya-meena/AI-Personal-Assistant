@@ -1,9 +1,11 @@
+process.env.DEBUG_WHATSAPP = 'true';
 import makeWASocket, { 
   useMultiFileAuthState, 
   DisconnectReason,
   delay,
   Browsers,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  jidDecode
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import path from 'path';
@@ -457,6 +459,74 @@ const WHATSAPP_TOOLS_REGISTRY: WhatsAppToolMeta[] = [
   }
 ];
 
+// ── In-memory WhatsApp data store ─────────────────────────────────────────
+export interface WAChat {
+  id: string;
+  name: string;
+  unreadCount: number;
+  lastMessage: string;
+  lastMessageTime: number;
+  isGroup: boolean;
+  phone?: string; // for 1-to-1 chats
+}
+
+export interface WAMessage {
+  id: string;
+  chatId: string;
+  chatName: string;
+  sender: string;
+  senderPhone: string;
+  text: string;
+  timestamp: number;
+  fromMe: boolean;
+  messageType: string; // text, image, audio, video, document, sticker
+  isRead: boolean;
+}
+
+export function logWhatsAppDebug(requestId: string, message: string, detail?: any) {
+  const isDebug = process.env.DEBUG_WHATSAPP === 'true';
+  if (!isDebug) return;
+  const timestamp = new Date().toISOString();
+  let logLine = `[WA DEBUG][${requestId}][${timestamp}] ${message}`;
+  if (detail !== undefined) {
+    let detailStr = '';
+    if (typeof detail === 'object') {
+      try {
+        detailStr = JSON.stringify(detail);
+      } catch (e) {
+        detailStr = String(detail);
+      }
+    } else {
+      detailStr = String(detail);
+    }
+    logLine += `: ${detailStr}`;
+  } else {
+    logLine += '';
+  }
+  
+  console.log(logLine);
+  
+  // Append to a local log file in the workspace
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const logFilePath = path.join(process.cwd(), 'whatsapp_debug.log');
+    fs.appendFileSync(logFilePath, logLine + '\n');
+  } catch (e) {
+    // Fail silently if we cannot write to file
+  }
+}
+
+export function getCallerInfo(): string {
+  const err = new Error();
+  const stack = err.stack || '';
+  const lines = stack.split('\n');
+  if (lines.length > 3) {
+    return lines[3].trim();
+  }
+  return 'unknown';
+}
+
 export class WhatsAppService extends BaseIntegrationService {
   platformId = "whatsapp";
   
@@ -469,6 +539,184 @@ export class WhatsAppService extends BaseIntegrationService {
   }> = {};
   // Per-user promise that resolves once the WS transport is open (pre-auth)
   private socketReady: Record<string, { resolve: () => void; reject: (e: any) => void }> = {};
+
+  // ── Real-time in-memory chat & message store (production) ──────────────
+  private chatStore: Record<string, Record<string, WAChat>> = {};     // userId → chatId → WAChat
+  private messageStore: Record<string, Record<string, WAMessage[]>> = {}; // userId → chatId → WAMessage[]
+  private readonly MAX_MESSAGES_PER_CHAT = 200;
+  private readonly MAX_CHATS = 100;
+
+  private ensureUserStore(userId: string) {
+    if (!this.chatStore[userId]) this.chatStore[userId] = {};
+    if (!this.messageStore[userId]) this.messageStore[userId] = {};
+  }
+
+  private resolveJid(userId: string, input: string): string {
+    if (!input) return '';
+    const trimmed = input.trim();
+    
+    // 1. If it contains a valid WhatsApp JID domain, sanitize and return it
+    const validDomains = ['s.whatsapp.net', 'g.us', 'c.us', 'broadcast', 'newsletter', 'lid'];
+    if (trimmed.includes('@')) {
+      const parts = trimmed.split('@');
+      if (parts.length === 2) {
+        const [user, domain] = parts;
+        if (validDomains.includes(domain.toLowerCase())) {
+          // Remove '+' and keep only numbers / hyphens for group ids / colons for device ids
+          const cleanUser = user.replace(/^\+/, '').replace(/[^0-9:-]/g, '');
+          return `${cleanUser}@${domain.toLowerCase()}`;
+        }
+      }
+    }
+
+    // 2. Search chatStore for a matching name
+    const userChats = this.chatStore[userId];
+    if (userChats) {
+      const query = trimmed.toLowerCase();
+
+      // Check exact match
+      const exactMatch = Object.values(userChats).find(
+        (c) => c.name?.toLowerCase() === query
+      );
+      if (exactMatch) return exactMatch.id;
+
+      // Check if chat name is inside the query (e.g. chat: "Marcus", query: "Marcus (Lead Dev)")
+      const nameInsideQuery = Object.values(userChats).find(
+        (c) => c.name && query.includes(c.name.toLowerCase())
+      );
+      if (nameInsideQuery) return nameInsideQuery.id;
+
+      // Check if query is inside chat name (e.g. chat: "Marcus Smith", query: "Marcus")
+      const queryInsideName = Object.values(userChats).find(
+        (c) => c.name && c.name.toLowerCase().includes(query)
+      );
+      if (queryInsideName) return queryInsideName.id;
+    }
+
+    // 3. Special handling for group formats before general phone number extraction
+    // If it contains a hyphen (e.g. "919876543210-1538392039")
+    if (trimmed.includes('-')) {
+      const cleanGroup = trimmed.replace(/[^\d-]/g, '');
+      if (cleanGroup.includes('-')) {
+        return `${cleanGroup}@g.us`;
+      }
+    }
+
+    // If it is an 18-digit ID starting with 120363 (WhatsApp's new group ID space)
+    const digitsOnly = trimmed.replace(/\D/g, '');
+    if (digitsOnly.length === 18 && digitsOnly.startsWith('120363')) {
+      return `${digitsOnly}@g.us`;
+    }
+
+    // 4. Extract any phone number digits from the input (e.g. "Marcus <+15550199231>")
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length >= 7) {
+      return `${digits}@s.whatsapp.net`;
+    }
+
+    return trimmed;
+  }
+
+  public isValidJid(jid: string): boolean {
+    if (!jid) return false;
+    const parts = jid.split('@');
+    if (parts.length !== 2) return false;
+    const [user, domain] = parts;
+    if (!user || !domain) return false;
+    
+    const validDomains = ['s.whatsapp.net', 'g.us', 'c.us', 'broadcast', 'newsletter', 'lid'];
+    if (!validDomains.includes(domain.toLowerCase())) return false;
+    
+    // User part should only contain digits, hyphens (for groups) or colon (for devices)
+    return /^[0-9:-]+$/.test(user);
+  }
+
+  /** Returns the latest chats sorted by last message time. */
+  getChats(userId: string, limit = 30): WAChat[] {
+    const store = this.chatStore[userId] || {};
+    return Object.values(store)
+      .sort((a, b) => b.lastMessageTime - a.lastMessageTime)
+      .slice(0, limit);
+  }
+
+  /** Returns message history for a specific chatId. */
+  getMessages(userId: string, chatId: string, limit = 50): WAMessage[] {
+    const store = this.messageStore[userId]?.[chatId] || [];
+    return store.slice(-limit);
+  }
+
+  /** Returns all messages across all chats, sorted newest first. */
+  getAllMessages(userId: string, limit = 100): WAMessage[] {
+    const allChats = this.messageStore[userId] || {};
+    const all: WAMessage[] = [];
+    for (const msgs of Object.values(allChats)) {
+      all.push(...msgs);
+    }
+    return all.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+
+  /** Returns all messages with unreadCount > 0 including their message content. */
+  getUnreadMessages(userId: string): { chat: WAChat; messages: WAMessage[] }[] {
+    const chats = this.getChats(userId, 100).filter(c => c.unreadCount > 0);
+    return chats.map(chat => ({
+      chat,
+      messages: this.getMessages(userId, chat.id, 20)
+        .filter(m => !m.fromMe && !m.isRead),
+    })).filter(r => r.messages.length > 0);
+  }
+
+  /** Search messages by keyword across all chats. */
+  searchMessages(userId: string, query: string, limit = 30): WAMessage[] {
+    const q = query.toLowerCase();
+    const allChats = this.messageStore[userId] || {};
+    const results: WAMessage[] = [];
+    for (const msgs of Object.values(allChats)) {
+      for (const msg of msgs) {
+        if (msg.text.toLowerCase().includes(q)) {
+          results.push(msg);
+        }
+      }
+    }
+    return results.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
+  }
+
+  /** Checks if the store has any messages at all for a user. */
+  hasData(userId: string): boolean {
+    return Object.keys(this.chatStore[userId] || {}).length > 0;
+  }
+
+  /** Upserts a chat entry. */
+  private upsertChat(userId: string, chat: Partial<WAChat> & { id: string }) {
+    this.ensureUserStore(userId);
+    const existing = this.chatStore[userId][chat.id] || {};
+    this.chatStore[userId][chat.id] = { ...existing, ...chat } as WAChat;
+
+    // Prune to MAX_CHATS
+    const all = Object.values(this.chatStore[userId]);
+    if (all.length > this.MAX_CHATS) {
+      const sorted = all.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
+      this.chatStore[userId] = {};
+      for (const c of sorted.slice(0, this.MAX_CHATS)) {
+        this.chatStore[userId][c.id] = c;
+      }
+    }
+  }
+
+  /** Appends a message to the store (deduplicates by id). */
+  private appendMessage(userId: string, msg: WAMessage) {
+    this.ensureUserStore(userId);
+    if (!this.messageStore[userId][msg.chatId]) {
+      this.messageStore[userId][msg.chatId] = [];
+    }
+    // Deduplicate
+    const existing = this.messageStore[userId][msg.chatId];
+    if (existing.some(m => m.id === msg.id)) return;
+    existing.push(msg);
+    // Trim to max
+    if (existing.length > this.MAX_MESSAGES_PER_CHAT) {
+      this.messageStore[userId][msg.chatId] = existing.slice(-this.MAX_MESSAGES_PER_CHAT);
+    }
+  }
 
   static getInstance(): WhatsAppService {
     const g = global as any;
@@ -676,47 +924,311 @@ export class WhatsAppService extends BaseIntegrationService {
       throw new Error("WhatsApp socket not connected");
     }
 
-    const chatId = params.chatId || params.groupId || '';
+    if (!sock.user || !sock.user.id || !sock.authState?.creds?.me?.id) {
+      console.warn(`[WhatsAppService] WhatsApp socket exists but is not fully authenticated/ready. sock.user:`, sock.user, `me:`, sock.authState?.creds?.me);
+      return {
+        success: false,
+        error: "WhatsApp connection is initializing or not authenticated. Please wait or re-link."
+      };
+    }
+
+    const rawChatId = params.chatId || params.groupId || '';
+    const chatId = this.resolveJid(userId, rawChatId);
+    console.log(`[WhatsAppService] Resolved JID for execution: "${chatId}" from raw: "${rawChatId}"`);
+
+    const needsChatId = [
+      "whatsapp_read_chat_history",
+      "whatsapp_send_message",
+      "whatsapp_send_media",
+      "whatsapp_block_contact",
+      "whatsapp_unblock_contact",
+      "whatsapp_leave_group"
+    ].includes(toolName);
+
+    if (needsChatId) {
+      const isValid = this.isValidJid(chatId);
+      
+      console.log("[WhatsAppService] Pre-send Verification & Payload Log:");
+      console.log(` - Raw recipient input: "${rawChatId}"`);
+      console.log(` - Converted/resolved JID: "${chatId}"`);
+      
+      let decodedJid: any = null;
+      try {
+        if (isValid) {
+          decodedJid = jidDecode(chatId);
+        }
+      } catch (e) {}
+      console.log(` - Decoded JID info:`, decodedJid ? { user: decodedJid.user, server: decodedJid.server } : "null/undefined");
+      
+      let payloadLog: any = null;
+      if (toolName === "whatsapp_send_message") {
+        payloadLog = { text: params.message };
+      } else if (toolName === "whatsapp_send_media") {
+        payloadLog = { image: { url: params.mediaUrl }, caption: params.caption };
+      }
+      console.log(` - sendMessage payload:`, payloadLog ? JSON.stringify(payloadLog) : "N/A for this tool");
+
+      if (!isValid) {
+        console.warn(`[WhatsAppService] Validation failed for chatId "${chatId}". Returning API error.`);
+        return {
+          success: false,
+          error: "Invalid recipient JID"
+        };
+      }
+    }
 
     switch (toolName) {
-      case "whatsapp_get_recent_messages":
-        // Baileys has a list of recent chats inside history or we track it. We return a simplified list.
-        return { success: true, chats: [] };
+      case "whatsapp_get_recent_messages": {
+        // Return from in-memory store populated by messages.upsert events
+        const chats = this.getChats(userId, 20);
+        if (chats.length > 0) {
+          return { success: true, chats };
+        }
+        return { success: true, chats, note: 'Chat store is building up as new messages arrive.' };
+      }
       
-      case "whatsapp_read_chat_history":
-        return { success: true, messages: [] };
+      case "whatsapp_read_chat_history": {
+        const msgs = this.getMessages(userId, chatId, 30);
+        return { success: true, chatId, messages: msgs };
+      }
 
-      case "whatsapp_send_message":
-        const response = await sock.sendMessage(chatId, { text: params.message });
-        return { success: true, messageId: response.key.id, timestamp: new Date().toISOString() };
+      case "whatsapp_send_message": {
+        const requestId = Math.random().toString(36).substring(2, 7);
+        const startTime = Date.now();
+        const caller = getCallerInfo();
 
-      case "whatsapp_send_media":
-        const mediaResponse = await sock.sendMessage(chatId, { 
-          image: { url: params.mediaUrl }, 
-          caption: params.caption 
-        });
-        return { success: true, messageId: mediaResponse.key.id };
+        logWhatsAppDebug(requestId, "Request received", { toolName, params });
+        logWhatsAppDebug(requestId, `Resolved recipient JID`, chatId);
+        logWhatsAppDebug(requestId, `typeof resolved JID`, typeof chatId);
 
-      case "whatsapp_block_contact":
-        await sock.updateBlockStatus(chatId, 'block');
-        return { success: true };
+        let decoded: any = null;
+        try {
+          decoded = jidDecode(chatId);
+          logWhatsAppDebug(requestId, `decoded JID`, decoded);
+        } catch (e: any) {
+          logWhatsAppDebug(requestId, `decoded JID failed`, e.message);
+        }
 
-      case "whatsapp_unblock_contact":
-        await sock.updateBlockStatus(chatId, 'unblock');
-        return { success: true };
+        logWhatsAppDebug(requestId, `socket.user`, sock.user);
+        logWhatsAppDebug(requestId, `socket.user?.id`, sock.user?.id);
+        logWhatsAppDebug(requestId, `authState.creds.me`, sock.authState?.creds?.me);
+        logWhatsAppDebug(requestId, `authState.creds.me?.id`, sock.authState?.creds?.me?.id);
+        logWhatsAppDebug(requestId, `Calling sendMessage() from ${caller}`);
+
+        try {
+          const response = await sock.sendMessage(chatId, { text: params.message });
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `sendMessage succeeded in ${duration}ms`, { messageId: response.key.id });
+          return { success: true, messageId: response.key.id, timestamp: new Date().toISOString() };
+        } catch (err: any) {
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `Exception caught in sendMessage after ${duration}ms:`, {
+            message: err.message,
+            stack: err.stack
+          });
+          throw err;
+        }
+      }
+
+      case "whatsapp_send_media": {
+        const requestId = Math.random().toString(36).substring(2, 7);
+        const startTime = Date.now();
+        const caller = getCallerInfo();
+
+        logWhatsAppDebug(requestId, "Request received", { toolName, params });
+        logWhatsAppDebug(requestId, `Resolved recipient JID`, chatId);
+        logWhatsAppDebug(requestId, `typeof resolved JID`, typeof chatId);
+
+        let decoded: any = null;
+        try {
+          decoded = jidDecode(chatId);
+          logWhatsAppDebug(requestId, `decoded JID`, decoded);
+        } catch (e: any) {
+          logWhatsAppDebug(requestId, `decoded JID failed`, e.message);
+        }
+
+        logWhatsAppDebug(requestId, `socket.user`, sock.user);
+        logWhatsAppDebug(requestId, `socket.user?.id`, sock.user?.id);
+        logWhatsAppDebug(requestId, `authState.creds.me`, sock.authState?.creds?.me);
+        logWhatsAppDebug(requestId, `authState.creds.me?.id`, sock.authState?.creds?.me?.id);
+        logWhatsAppDebug(requestId, `Calling sendMessage() from ${caller}`);
+
+        try {
+          const mediaResponse = await sock.sendMessage(chatId, { 
+            image: { url: params.mediaUrl }, 
+            caption: params.caption 
+          });
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `sendMessage (media) succeeded in ${duration}ms`, { messageId: mediaResponse.key.id });
+          return { success: true, messageId: mediaResponse.key.id };
+        } catch (err: any) {
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `Exception caught in sendMessage (media) after ${duration}ms:`, {
+            message: err.message,
+            stack: err.stack
+          });
+          throw err;
+        }
+      }
+
+      case "whatsapp_block_contact": {
+        const requestId = Math.random().toString(36).substring(2, 7);
+        const startTime = Date.now();
+        const caller = getCallerInfo();
+        
+        logWhatsAppDebug(requestId, "Request received", { toolName, params });
+        logWhatsAppDebug(requestId, `Resolved recipient JID`, chatId);
+        logWhatsAppDebug(requestId, `typeof resolved JID`, typeof chatId);
+        
+        let decoded: any = null;
+        try {
+          decoded = jidDecode(chatId);
+          logWhatsAppDebug(requestId, `decoded JID`, decoded);
+        } catch (e: any) {
+          logWhatsAppDebug(requestId, `decoded JID failed`, e.message);
+        }
+
+        logWhatsAppDebug(requestId, `socket.user`, sock.user);
+        logWhatsAppDebug(requestId, `socket.user?.id`, sock.user?.id);
+        logWhatsAppDebug(requestId, `authState.creds.me`, sock.authState?.creds?.me);
+        logWhatsAppDebug(requestId, `authState.creds.me?.id`, sock.authState?.creds?.me?.id);
+        logWhatsAppDebug(requestId, `Calling updateBlockStatus() block from ${caller}`);
+
+        try {
+          await sock.updateBlockStatus(chatId, 'block');
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `updateBlockStatus succeeded in ${duration}ms`);
+          return { success: true };
+        } catch (err: any) {
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `Exception caught in updateBlockStatus block after ${duration}ms:`, {
+            message: err.message,
+            stack: err.stack
+          });
+          throw err;
+        }
+      }
+
+      case "whatsapp_unblock_contact": {
+        const requestId = Math.random().toString(36).substring(2, 7);
+        const startTime = Date.now();
+        const caller = getCallerInfo();
+        
+        logWhatsAppDebug(requestId, "Request received", { toolName, params });
+        logWhatsAppDebug(requestId, `Resolved recipient JID`, chatId);
+        logWhatsAppDebug(requestId, `typeof resolved JID`, typeof chatId);
+        
+        let decoded: any = null;
+        try {
+          decoded = jidDecode(chatId);
+          logWhatsAppDebug(requestId, `decoded JID`, decoded);
+        } catch (e: any) {
+          logWhatsAppDebug(requestId, `decoded JID failed`, e.message);
+        }
+
+        logWhatsAppDebug(requestId, `socket.user`, sock.user);
+        logWhatsAppDebug(requestId, `socket.user?.id`, sock.user?.id);
+        logWhatsAppDebug(requestId, `authState.creds.me`, sock.authState?.creds?.me);
+        logWhatsAppDebug(requestId, `authState.creds.me?.id`, sock.authState?.creds?.me?.id);
+        logWhatsAppDebug(requestId, `Calling updateBlockStatus() unblock from ${caller}`);
+
+        try {
+          await sock.updateBlockStatus(chatId, 'unblock');
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `updateBlockStatus unblock succeeded in ${duration}ms`);
+          return { success: true };
+        } catch (err: any) {
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `Exception caught in updateBlockStatus unblock after ${duration}ms:`, {
+            message: err.message,
+            stack: err.stack
+          });
+          throw err;
+        }
+      }
 
       case "whatsapp_list_groups":
         const groups = await sock.groupFetchAllParticipating();
         return { success: true, groups: Object.values(groups) };
 
-      case "whatsapp_create_group":
-        const participants = (params.participants || '').split(',').map((p: string) => p.trim());
-        const groupMeta = await sock.groupCreate(params.subject, participants);
-        return { success: true, groupId: groupMeta.id };
+      case "whatsapp_create_group": {
+        const requestId = Math.random().toString(36).substring(2, 7);
+        const startTime = Date.now();
+        const caller = getCallerInfo();
+        
+        const rawParticipants = (params.participants || '').split(',').map((p: string) => p.trim());
+        const participants = rawParticipants.map((p: string) => this.resolveJid(userId, p)).filter(Boolean);
 
-      case "whatsapp_leave_group":
-        await sock.groupLeave(chatId);
-        return { success: true };
+        logWhatsAppDebug(requestId, "Request received", { toolName, params });
+        logWhatsAppDebug(requestId, `Resolved participants list`, participants);
+        
+        for (const p of participants) {
+          logWhatsAppDebug(requestId, `Participant JID: ${p}`, {
+            typeof: typeof p,
+            decoded: (() => {
+              try { return jidDecode(p); } catch (e) { return "failed"; }
+            })()
+          });
+        }
+
+        logWhatsAppDebug(requestId, `socket.user`, sock.user);
+        logWhatsAppDebug(requestId, `socket.user?.id`, sock.user?.id);
+        logWhatsAppDebug(requestId, `authState.creds.me`, sock.authState?.creds?.me);
+        logWhatsAppDebug(requestId, `authState.creds.me?.id`, sock.authState?.creds?.me?.id);
+        logWhatsAppDebug(requestId, `Calling groupCreate() from ${caller}`);
+
+        try {
+          const groupMeta = await sock.groupCreate(params.subject, participants);
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `groupCreate succeeded in ${duration}ms`, { groupId: groupMeta.id });
+          return { success: true, groupId: groupMeta.id };
+        } catch (err: any) {
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `Exception caught in groupCreate after ${duration}ms:`, {
+            message: err.message,
+            stack: err.stack
+          });
+          throw err;
+        }
+      }
+
+      case "whatsapp_leave_group": {
+        const requestId = Math.random().toString(36).substring(2, 7);
+        const startTime = Date.now();
+        const caller = getCallerInfo();
+        
+        logWhatsAppDebug(requestId, "Request received", { toolName, params });
+        logWhatsAppDebug(requestId, `Resolved recipient JID`, chatId);
+        logWhatsAppDebug(requestId, `typeof resolved JID`, typeof chatId);
+        
+        let decoded: any = null;
+        try {
+          decoded = jidDecode(chatId);
+          logWhatsAppDebug(requestId, `decoded JID`, decoded);
+        } catch (e: any) {
+          logWhatsAppDebug(requestId, `decoded JID failed`, e.message);
+        }
+
+        logWhatsAppDebug(requestId, `socket.user`, sock.user);
+        logWhatsAppDebug(requestId, `socket.user?.id`, sock.user?.id);
+        logWhatsAppDebug(requestId, `authState.creds.me`, sock.authState?.creds?.me);
+        logWhatsAppDebug(requestId, `authState.creds.me?.id`, sock.authState?.creds?.me?.id);
+        logWhatsAppDebug(requestId, `Calling groupLeave() from ${caller}`);
+
+        try {
+          await sock.groupLeave(chatId);
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `groupLeave succeeded in ${duration}ms`);
+          return { success: true };
+        } catch (err: any) {
+          const duration = Date.now() - startTime;
+          logWhatsAppDebug(requestId, `Exception caught in groupLeave after ${duration}ms:`, {
+            message: err.message,
+            stack: err.stack
+          });
+          throw err;
+        }
+      }
 
       case "whatsapp_get_my_profile":
         return {
@@ -781,16 +1293,163 @@ export class WhatsAppService extends BaseIntegrationService {
     const sock = makeWASocket({
       version,
       auth: state,
-      logger: pino({ level: 'debug' }), // Enabled debug logs for tracing state changes
+      logger: pino({ level: 'warn' }),
       printQRInTerminal: false,
       browser: Browsers.ubuntu('Chrome'),
-      countryCode, // The 2-letter ISO country code
+      countryCode,
       defaultQueryTimeoutMs: 30000,
     });
 
     sock.ev.on('creds.update', () => {
       console.log(`[WhatsAppService] creds.update event fired for user ${userId}`);
       saveCreds();
+    });
+
+    // ── Populate message store from incoming & historical messages ─────────
+    // 'notify' = real-time new messages; 'append' = history sync on reconnect
+    sock.ev.on('messages.upsert', ({ messages: msgs, type }: { messages: any[]; type: string }) => {
+      if (type !== 'notify' && type !== 'append') return;
+      for (const msg of msgs) {
+        try {
+          const chatId: string = msg.key.remoteJid || '';
+          if (!chatId || chatId.endsWith('@broadcast')) continue;
+          // Skip protocol/status messages
+          if (msg.message?.protocolMessage || msg.message?.senderKeyDistributionMessage) continue;
+
+          const fromMe: boolean = msg.key.fromMe || false;
+          const senderPhone: string = fromMe
+            ? (sock.user?.id?.split(':')[0] || 'me')
+            : chatId.split('@')[0];
+          const senderName: string = fromMe ? 'Me' : (msg.pushName || senderPhone);
+          const isGroup: boolean = chatId.endsWith('@g.us');
+
+          // Determine message type and extract text
+          let messageType = 'text';
+          let text = '';
+          if (msg.message?.conversation) {
+            text = msg.message.conversation;
+            messageType = 'text';
+          } else if (msg.message?.extendedTextMessage?.text) {
+            text = msg.message.extendedTextMessage.text;
+            messageType = 'text';
+          } else if (msg.message?.imageMessage) {
+            text = msg.message.imageMessage.caption || '[Image]';
+            messageType = 'image';
+          } else if (msg.message?.videoMessage) {
+            text = msg.message.videoMessage.caption || '[Video]';
+            messageType = 'video';
+          } else if (msg.message?.audioMessage) {
+            text = '[Voice Note]';
+            messageType = 'audio';
+          } else if (msg.message?.documentMessage) {
+            text = msg.message.documentMessage.fileName || '[Document]';
+            messageType = 'document';
+          } else if (msg.message?.stickerMessage) {
+            text = '[Sticker]';
+            messageType = 'sticker';
+          } else if (msg.message?.reactionMessage) {
+            text = `[Reaction: ${msg.message.reactionMessage.text || ''}]`;
+            messageType = 'reaction';
+          } else if (msg.message?.locationMessage) {
+            text = '[Location]';
+            messageType = 'location';
+          } else if (msg.message?.contactMessage) {
+            text = `[Contact: ${msg.message.contactMessage.displayName || ''}]`;
+            messageType = 'contact';
+          } else {
+            text = '[Media]';
+            messageType = 'unknown';
+          }
+
+          const ts: number = (msg.messageTimestamp as number) || Math.floor(Date.now() / 1000);
+
+          // Get existing chat name (may have been set already from groups.upsert)
+          const existingChatName = this.chatStore[userId]?.[chatId]?.name;
+          const chatName = existingChatName ||
+            (isGroup ? chatId.split('@')[0] : (msg.pushName || senderPhone));
+
+          const waMsg: WAMessage = {
+            id: msg.key.id || `${ts}-${Math.random()}`,
+            chatId,
+            chatName,
+            sender: senderName,
+            senderPhone,
+            text,
+            timestamp: ts,
+            fromMe,
+            messageType,
+            isRead: fromMe || type === 'append', // historical messages from append are already read
+          };
+          this.appendMessage(userId, waMsg);
+
+          // Upsert the chat summary
+          const newUnread = fromMe || type === 'append'
+            ? (this.chatStore[userId]?.[chatId]?.unreadCount || 0)
+            : (this.chatStore[userId]?.[chatId]?.unreadCount || 0) + 1;
+
+          this.upsertChat(userId, {
+            id: chatId,
+            name: chatName,
+            unreadCount: newUnread,
+            lastMessage: text,
+            lastMessageTime: ts,
+            isGroup,
+            phone: isGroup ? undefined : senderPhone,
+          });
+        } catch (e) {
+          // Non-critical — skip malformed message
+        }
+      }
+    });
+
+    // ── Track read receipts to mark messages as read ─────────────────────
+    sock.ev.on('message-receipt.update', (updates: any[]) => {
+      for (const update of updates) {
+        try {
+          const chatId: string = update.key?.remoteJid || '';
+          const msgId: string = update.key?.id || '';
+          if (!chatId || !msgId) continue;
+          const store = this.messageStore[userId]?.[chatId];
+          if (!store) continue;
+          const msg = store.find(m => m.id === msgId);
+          if (msg) {
+            msg.isRead = true;
+          }
+          // Decrement unread count when read receipts arrive
+          if (this.chatStore[userId]?.[chatId]) {
+            const chat = this.chatStore[userId][chatId];
+            if (chat.unreadCount > 0) {
+              chat.unreadCount = Math.max(0, chat.unreadCount - 1);
+            }
+          }
+        } catch {}
+      }
+    });
+
+    // ── Sync group metadata into chat store ──────────────────────────────
+    sock.ev.on('groups.upsert', (groups: any[]) => {
+      for (const g of groups) {
+        if (g.id && g.subject) {
+          this.upsertChat(userId, {
+            id: g.id,
+            name: g.subject,
+            isGroup: true,
+            lastMessageTime: this.chatStore[userId]?.[g.id]?.lastMessageTime || Math.floor(Date.now() / 1000),
+            unreadCount: this.chatStore[userId]?.[g.id]?.unreadCount || 0,
+            lastMessage: this.chatStore[userId]?.[g.id]?.lastMessage || '',
+          });
+        }
+      }
+    });
+
+
+    // ── Sync group subject names into chat store ─────────────────────────
+    sock.ev.on('groups.update', (updates: any[]) => {
+      for (const g of updates) {
+        if (g.id && g.subject && this.chatStore[userId]?.[g.id]) {
+          this.chatStore[userId][g.id].name = g.subject;
+        }
+      }
     });
 
     sock.ev.on('connection.update', async (update) => {
@@ -821,6 +1480,8 @@ export class WhatsAppService extends BaseIntegrationService {
             fs.rmSync(sessionDir, { recursive: true, force: true });
           } catch (e) {}
           delete this.sockets[userId];
+          delete this.chatStore[userId];
+          delete this.messageStore[userId];
           await this.updateDbStatus(userId, 'disconnected', accessToken, { mode: 'production', phone: '' });
         }
       } else if (connection === 'open') {
@@ -854,7 +1515,7 @@ export class WhatsAppService extends BaseIntegrationService {
       const insforgeClient = createClient({
         baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL || "",
         anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || "",
-        accessToken
+        ...(accessToken ? { accessToken } : {})
       });
 
       const { data, error } = await insforgeClient.database
@@ -885,7 +1546,7 @@ export class WhatsAppService extends BaseIntegrationService {
       const insforgeClient = createClient({
         baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL || "",
         anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || "",
-        accessToken
+        ...(accessToken ? { accessToken } : {})
       });
       const { data } = await insforgeClient.database
         .from("user_integrations")
@@ -904,7 +1565,7 @@ export class WhatsAppService extends BaseIntegrationService {
       const insforgeClient = createClient({
         baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL || "",
         anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || "",
-        accessToken
+        ...(accessToken ? { accessToken } : {})
       });
       const { data } = await insforgeClient.database
         .from("user_integrations")

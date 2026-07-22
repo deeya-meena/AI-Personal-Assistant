@@ -117,6 +117,7 @@ export default function Home() {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
+              suppressHydrationWarning
               className="p-2.5 rounded-xl border border-zinc-205 dark:border-zinc-800 text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white bg-zinc-100/50 dark:bg-zinc-900/40 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/80 transition-all cursor-pointer flex items-center justify-center animate-pulse"
               style={{ animationDuration: '3s' }}
               title="Toggle Theme"
@@ -156,7 +157,8 @@ export default function Home() {
           <div className="flex items-center gap-2 md:hidden">
             <button
               onClick={toggleTheme}
-              className="p-2 text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/40 transition-all cursor-pointer animate-pulse"
+              suppressHydrationWarning
+              className="p-2 text-zinc-555 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/40 dark:bg-zinc-900/40 transition-all cursor-pointer animate-pulse"
               style={{ animationDuration: '3s' }}
               title="Toggle Theme"
             >

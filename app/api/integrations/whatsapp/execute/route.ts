@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
     const service = WhatsAppService.getInstance();
 
     const output = await service.executeTool(user.id, toolName, params || {}, token);
+    if (output && output.success === false) {
+      return NextResponse.json(output, { status: 400 });
+    }
     return NextResponse.json(output);
 
   } catch (error: any) {

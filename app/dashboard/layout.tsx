@@ -67,7 +67,7 @@ export default function DashboardLayout({
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-bg-dark text-foreground flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-accent-violet animate-spin" />
       </div>
     );
@@ -120,14 +120,14 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-bg-dark text-foreground flex flex-col md:flex-row relative">
+    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row relative">
       {/* Decorative Spheres */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-accent-violet/5 blur-[120px] pointer-events-none" />
       <div className="absolute top-[40%] right-[-10%] w-[45%] h-[45%] rounded-full bg-accent-cyan/5 blur-[150px] pointer-events-none" />
       <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none z-0" />
 
       {/* Mobile Top Navigation Bar */}
-      <header className="md:hidden flex items-center justify-between px-6 py-4 glassmorphism border-b border-card-border/80 sticky top-0 z-40 w-full">
+      <header className="md:hidden flex items-center justify-between px-6 py-4 glassmorphism border-b border-card-border sticky top-0 z-40 w-full shadow-sm">
         <Link href="/" className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-violet to-accent-indigo flex items-center justify-center shadow-lg">
             <HugeiconsIcon icon={Brain01Icon} size={16} color="white" />
@@ -140,7 +140,8 @@ export default function DashboardLayout({
           {/* Mobile Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-450 dark:hover:text-white rounded-lg border border-zinc-200 hover:border-zinc-300 dark:border-zinc-850 dark:hover:border-zinc-700 bg-zinc-100/40 dark:bg-zinc-900/40 transition-all cursor-pointer"
+            suppressHydrationWarning
+            className="p-2 text-text-secondary hover:text-text-primary rounded-lg border border-card-border bg-card hover:bg-muted transition-all cursor-pointer shadow-sm"
             title="Toggle Theme"
           >
             {theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-600" />}
@@ -148,7 +149,7 @@ export default function DashboardLayout({
           
           <button
             onClick={() => setIsMobileOpen(!isMobileOpen)}
-            className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-405 dark:hover:text-white rounded-lg border border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-750 bg-zinc-100/40 dark:bg-zinc-950/40 transition-all cursor-pointer"
+            className="p-2 text-text-secondary hover:text-text-primary rounded-lg border border-card-border bg-card hover:bg-muted transition-all cursor-pointer shadow-sm"
           >
             <HugeiconsIcon icon={Menu01Icon} size={20} />
           </button>
@@ -157,9 +158,9 @@ export default function DashboardLayout({
 
       {/* Mobile Sidebar Drawer */}
       {isMobileOpen && (
-        <div className="fixed inset-0 z-55 bg-black/60 backdrop-blur-sm md:hidden" onClick={() => setIsMobileOpen(false)}>
+        <div className="fixed inset-0 z-55 bg-black/40 dark:bg-black/70 backdrop-blur-sm md:hidden" onClick={() => setIsMobileOpen(false)}>
           <aside
-            className="w-72 h-full bg-card-bg border-r border-card-border flex flex-col p-6 space-y-6 relative"
+            className="w-72 h-full bg-card border-r border-card-border flex flex-col p-6 space-y-6 relative shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -169,12 +170,12 @@ export default function DashboardLayout({
                 </div>
                 <div>
                   <span className="font-extrabold text-lg tracking-tight text-text-primary">Aura</span>
-                  <span className="text-[10px] block font-mono text-zinc-500 mt-[-2px]">CONTROL CENTER</span>
+                  <span className="text-[10px] block font-mono text-text-secondary mt-[-2px]">CONTROL CENTER</span>
                 </div>
               </Link>
               <button
                 onClick={() => setIsMobileOpen(false)}
-                className="p-1.5 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white rounded-lg border border-zinc-200 dark:border-zinc-800 cursor-pointer"
+                className="p-1.5 text-text-secondary hover:text-text-primary rounded-lg border border-card-border hover:bg-muted cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -191,8 +192,8 @@ export default function DashboardLayout({
                     onClick={() => setIsMobileOpen(false)}
                     className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
                       isActive
-                        ? "bg-zinc-200/65 dark:bg-zinc-900/60 border-zinc-300/80 dark:border-zinc-800/80 text-zinc-900 dark:text-white font-medium shadow-inner"
-                        : "border-transparent text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/40 dark:hover:bg-zinc-900/20"
+                        ? "bg-accent-violet/10 border-accent-violet/30 text-text-primary font-semibold shadow-sm"
+                        : "border-transparent text-text-secondary hover:text-text-primary hover:bg-muted"
                     }`}
                   >
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white ${item.bgColor} shadow-sm flex-shrink-0`}>
@@ -211,8 +212,8 @@ export default function DashboardLayout({
                 onClick={() => setIsMobileOpen(false)}
                 className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
                   pathname === pricingItem.href
-                    ? "bg-zinc-200/65 dark:bg-zinc-900/60 border-zinc-300/80 dark:border-zinc-800/80 text-zinc-900 dark:text-white font-medium shadow-inner"
-                    : "border-transparent text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/40 dark:hover:bg-zinc-900/20"
+                    ? "bg-accent-violet/10 border-accent-violet/30 text-text-primary font-semibold shadow-sm"
+                    : "border-transparent text-text-secondary hover:text-text-primary hover:bg-muted"
                 }`}
               >
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white ${pricingItem.bgColor} shadow-sm flex-shrink-0`}>
@@ -226,9 +227,9 @@ export default function DashboardLayout({
                   setIsMobileOpen(false);
                   signOut();
                 }}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border border-transparent text-zinc-500 hover:text-red-450 hover:bg-red-500/5 transition-all text-left cursor-pointer"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-transparent text-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-all text-left cursor-pointer"
               >
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 shadow-sm flex-shrink-0">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-muted text-text-secondary shadow-sm flex-shrink-0">
                   <HugeiconsIcon icon={Logout01Icon} size={18} />
                 </div>
                 <span>Sign Out</span>
@@ -240,7 +241,7 @@ export default function DashboardLayout({
 
       {/* Desktop Persistent Collapsible Sidebar */}
       <aside
-        className={`hidden md:flex flex-col h-screen sticky top-0 z-30 bg-card-bg/90 backdrop-blur-md border-r border-card-border transition-all duration-300 relative ${
+        className={`hidden md:flex flex-col h-screen sticky top-0 z-30 bg-card/90 backdrop-blur-md border-r border-card-border transition-all duration-300 relative ${
           mounted && isCollapsed ? "w-20" : "w-64"
         }`}
       >
@@ -253,7 +254,7 @@ export default function DashboardLayout({
               </div>
               <div className="flex flex-col transition-all duration-300">
                 <span className="font-extrabold text-xl tracking-tight text-text-primary leading-none">Aura</span>
-                <span className="text-[9px] font-mono text-zinc-500 mt-1 uppercase tracking-wider">CONTROL CENTER</span>
+                <span className="text-[9px] font-mono text-text-secondary mt-1 uppercase tracking-wider">CONTROL CENTER</span>
               </div>
             </Link>
           ) : (
@@ -266,7 +267,7 @@ export default function DashboardLayout({
           {!(mounted && isCollapsed) && (
             <button
               onClick={toggleCollapse}
-              className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-850 text-zinc-500 dark:text-zinc-450 hover:text-zinc-900 dark:hover:text-white bg-zinc-100/40 hover:bg-zinc-200/80 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/80 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer hidden md:block"
+              className="p-1.5 rounded-lg border border-card-border text-text-secondary hover:text-text-primary bg-card hover:bg-muted transition-all cursor-pointer hidden md:block shadow-sm"
               title="Collapse Sidebar"
             >
               <HugeiconsIcon icon={ChevronLeftIcon} size={16} />
@@ -276,10 +277,10 @@ export default function DashboardLayout({
 
         {/* Collapsed Expand Trigger */}
         {mounted && isCollapsed && (
-          <div className="flex justify-center py-4 border-b border-card-border/20">
+          <div className="flex justify-center py-4 border-b border-card-border/40">
             <button
               onClick={toggleCollapse}
-              className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-850 text-zinc-500 dark:text-zinc-455 hover:text-zinc-900 dark:hover:text-white bg-zinc-100/40 hover:bg-zinc-200/80 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/80 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all cursor-pointer"
+              className="p-2 rounded-lg border border-card-border text-text-secondary hover:text-text-primary bg-card hover:bg-muted transition-all cursor-pointer shadow-sm"
               title="Expand Sidebar"
             >
               <HugeiconsIcon icon={ChevronRightIcon} size={16} />
@@ -298,8 +299,8 @@ export default function DashboardLayout({
                 href={item.href}
                 className={`group flex items-center rounded-xl border transition-all ${
                   isActive
-                    ? "bg-zinc-200/60 dark:bg-zinc-900/60 border-zinc-300/80 dark:border-zinc-800/80 text-zinc-900 dark:text-white font-medium shadow-inner"
-                    : "border-transparent text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/40 dark:hover:bg-zinc-900/20"
+                    ? "bg-accent-violet/10 border-accent-violet/30 text-text-primary font-semibold shadow-sm"
+                    : "border-transparent text-text-secondary hover:text-text-primary hover:bg-muted"
                 } ${collapsedMode ? "justify-center p-2" : "gap-4 p-3"}`}
                 title={collapsedMode ? item.name : undefined}
               >
@@ -325,8 +326,8 @@ export default function DashboardLayout({
             href={pricingItem.href}
             className={`group flex items-center rounded-xl border transition-all ${
               pathname === pricingItem.href
-                ? "bg-zinc-200/60 dark:bg-zinc-900/60 border-zinc-300/80 dark:border-zinc-800/80 text-zinc-900 dark:text-white font-medium shadow-inner"
-                : "border-transparent text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/40 dark:hover:bg-zinc-900/20"
+                ? "bg-accent-violet/10 border-accent-violet/30 text-text-primary font-semibold shadow-sm"
+                : "border-transparent text-text-secondary hover:text-text-primary hover:bg-muted"
             } ${mounted && isCollapsed ? "justify-center p-2" : "gap-4 p-3"}`}
             title={mounted && isCollapsed ? pricingItem.name : undefined}
           >
@@ -345,12 +346,12 @@ export default function DashboardLayout({
           {/* Sign Out */}
           <button
             onClick={signOut}
-            className={`group w-full flex items-center rounded-xl border border-transparent text-zinc-500 hover:text-red-455 hover:bg-red-500/5 transition-all text-left cursor-pointer ${
+            className={`group w-full flex items-center rounded-xl border border-transparent text-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-all text-left cursor-pointer ${
               mounted && isCollapsed ? "justify-center p-2" : "gap-4 p-3"
             }`}
             title={mounted && isCollapsed ? "Sign Out" : undefined}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border border-zinc-200 dark:border-zinc-850 hover:bg-zinc-250 dark:hover:bg-zinc-850 hover:text-zinc-900 dark:hover:text-white group-hover:border-red-500/20 group-hover:text-red-455 shadow-md flex-shrink-0 transition-transform duration-200">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-muted text-text-secondary border border-card-border hover:bg-red-500/10 hover:text-red-500 group-hover:border-red-500/20 shadow-sm flex-shrink-0 transition-transform duration-200">
               <HugeiconsIcon icon={Logout01Icon} size={20} />
             </div>
             {!(mounted && isCollapsed) && (
@@ -363,11 +364,11 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 min-h-screen flex flex-col overflow-y-auto relative z-10">
+      <main className={`flex-1 flex flex-col relative z-10 ${pathname === "/dashboard/ai-agent" ? "overflow-hidden h-screen" : "min-h-screen overflow-y-auto"}`}>
         {/* Desktop Header */}
-        <header className="hidden md:flex items-center justify-between px-10 py-5 border-b border-card-border bg-card-bg/25 backdrop-blur-sm sticky top-0 z-20">
+        <header className="hidden md:flex items-center justify-between px-10 py-5 border-b border-card-border bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm">
           <div>
-            <h2 className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">Workspace</h2>
+            <h2 className="text-[10px] font-mono text-text-secondary uppercase tracking-widest">Workspace</h2>
             <h1 className="text-xl font-extrabold text-text-primary capitalize tracking-tight mt-0.5">
               {pathname === "/dashboard" 
                 ? "Control Center" 
@@ -377,10 +378,11 @@ export default function DashboardLayout({
           
           <div className="flex items-center gap-4">
             {/* Theme Toggle Button */}
-            <div className="flex items-center gap-2 bg-zinc-100/50 dark:bg-zinc-900/40 p-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/80">
+            <div className="flex items-center gap-2 bg-muted p-1.5 rounded-xl border border-card-border shadow-sm">
               <button
                 onClick={toggleTheme}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                suppressHydrationWarning
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none text-text-secondary hover:text-text-primary"
                 title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
               >
                 {theme === "dark" ? (
@@ -399,7 +401,7 @@ export default function DashboardLayout({
 
             {/* Profile indicator */}
             {profile && (
-              <div className="flex items-center gap-3 pl-4 border-l border-card-border/80">
+              <div className="flex items-center gap-3 pl-4 border-l border-card-border">
                 {profile.avatar_url ? (
                   <img
                     src={profile.avatar_url}
@@ -407,13 +409,13 @@ export default function DashboardLayout({
                     className="w-8 h-8 rounded-lg object-cover border border-card-border"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-750 flex items-center justify-center font-bold text-xs text-text-primary">
+                  <div className="w-8 h-8 rounded-lg bg-muted border border-card-border flex items-center justify-center font-bold text-xs text-text-primary shadow-sm">
                     {profile.name?.charAt(0).toUpperCase() || "A"}
                   </div>
                 )}
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-text-primary">{profile.name || "Aura User"}</span>
-                  <span className="text-[9px] text-zinc-400 font-mono">
+                  <span className="text-[9px] text-text-secondary font-mono">
                     {profile.auth_provider === 'phone' ? "Phone Connected" : "Email Sync Active"}
                   </span>
                 </div>
@@ -422,7 +424,11 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <div className="flex-1 p-6 md:p-10 max-w-6xl w-full mx-auto">
+        <div className={
+          pathname === "/dashboard/ai-agent"
+            ? "flex-1 flex flex-col px-4 md:px-8 py-4 md:py-6 min-h-0 overflow-hidden"
+            : "flex-1 p-6 md:p-10 max-w-6xl w-full mx-auto"
+        }>
           {children}
         </div>
       </main>
