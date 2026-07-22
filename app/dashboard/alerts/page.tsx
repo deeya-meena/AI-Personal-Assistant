@@ -27,6 +27,11 @@ import {
   Wand2,
   FileText,
   ExternalLink,
+  ChevronLeft,
+  Archive,
+  Square,
+  CheckSquare,
+  PlayCircle
 } from "lucide-react";
 
 // ─── Platform Icon SVGs (reused from dashboard) ─────────────────────────────
@@ -142,10 +147,15 @@ interface TriggeredAlert {
   priority: "critical" | "high" | "medium" | "low";
   status: "active" | "acknowledged" | "resolved" | "snoozed";
   snoozed_until: string | null;
-  ai_summary: string | null;
-  ai_suggested_action: string | null;
-  ai_draft_reply: string | null;
+  ai_data: {
+    summary?: string;
+    action?: string;
+    draft_reply?: string;
+  };
   resolved_at: string | null;
+  archived_at: string | null;
+  source_id: string | null;
+  dedupe_key: string | null;
   created_at: string;
 }
 
@@ -233,10 +243,20 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalAlerts, setTotalAlerts] = useState(0);
+  const limit = 15;
+
+  // Bulk action states
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   // Filters
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [includeArchived, setIncludeArchived] = useState(false);
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -260,6 +280,7 @@ export default function AlertsPage() {
   const [formFrequency, setFormFrequency] = useState("realtime");
   const [formAction, setFormAction] = useState("notify");
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formTesting, setFormTesting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Detail dialog AI
@@ -287,6 +308,9 @@ export default function AlertsPage() {
       if (priorityFilter !== "all") params.set("priority", priorityFilter);
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (searchQuery) params.set("search", searchQuery);
+      if (includeArchived) params.set("include_archived", "true");
+      params.set("page", String(page));
+      params.set("limit", String(limit));
 
       const res = await fetch(`/api/dashboard/alerts?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -296,6 +320,10 @@ export default function AlertsPage() {
         const json = await res.json();
         setAlerts(json.data || []);
         if (json.stats) setStats(json.stats);
+        if (json.pagination) {
+          setTotalPages(json.pagination.totalPages || 1);
+          setTotalAlerts(json.pagination.total || 0);
+        }
       }
     } catch (err) {
       console.error("[Alerts] Fetch error:", err);
@@ -303,7 +331,7 @@ export default function AlertsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user, priorityFilter, statusFilter, searchQuery]);
+  }, [user, priorityFilter, statusFilter, searchQuery, includeArchived, page]);
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
@@ -332,31 +360,49 @@ export default function AlertsPage() {
 
   useEffect(() => { fetchAiSuggestions(); }, [fetchAiSuggestions]);
 
-  // ─── Realtime Subscription ─────────────────────────────────────────────────
+  // ─── Realtime Subscription (INSERT, UPDATE, DELETE) ───────────────────────────
 
   useEffect(() => {
     if (!user) return;
     let channel: any;
     try {
       channel = (insforge as any).realtime
-        ?.channel?.("alerts-realtime")
+        ?.channel?.("alerts-realtime-full")
         ?.on?.("postgres_changes", {
-          event: "INSERT",
+          event: "*", // Listen to all inserts, updates, and deletes
           schema: "public",
           table: "triggered_alerts",
           filter: `user_id=eq.${user.id}`,
         }, (payload: any) => {
-          if (payload?.new) {
-            setAlerts((prev) => [payload.new as TriggeredAlert, ...prev]);
-            setStats((prev) => ({
-              ...prev,
-              active: prev.active + 1,
-              triggeredToday: prev.triggeredToday + 1,
-              highPriority:
-                payload.new.priority === "critical" || payload.new.priority === "high"
-                  ? prev.highPriority + 1
-                  : prev.highPriority,
-            }));
+          if (payload.eventType === "INSERT" && payload.new) {
+            const newAlert = payload.new as TriggeredAlert;
+            const matchesArchive = includeArchived || !newAlert.archived_at;
+            const matchesPriority = priorityFilter === "all" || newAlert.priority === priorityFilter;
+            const matchesStatus = statusFilter === "all" || newAlert.status === statusFilter;
+            
+            if (matchesArchive && matchesPriority && matchesStatus) {
+              setAlerts((prev) => {
+                if (prev.some((a) => a.id === newAlert.id)) return prev;
+                return [newAlert, ...prev];
+              });
+            }
+            fetchAlerts(true);
+          } else if (payload.eventType === "UPDATE" && payload.new) {
+            const updatedAlert = payload.new as TriggeredAlert;
+            setAlerts((prev) =>
+              prev.map((a) => (a.id === updatedAlert.id ? updatedAlert : a))
+            );
+            if (selectedAlert?.id === updatedAlert.id) {
+              setSelectedAlert(updatedAlert);
+            }
+            fetchAlerts(true);
+          } else if (payload.eventType === "DELETE" && payload.old) {
+            const deletedId = payload.old.id;
+            setAlerts((prev) => prev.filter((a) => a.id !== deletedId));
+            if (selectedAlert?.id === deletedId) {
+              setSelectedAlert(null);
+            }
+            fetchAlerts(true);
           }
         })
         ?.subscribe?.();
@@ -365,7 +411,7 @@ export default function AlertsPage() {
     return () => {
       try { channel?.unsubscribe?.(); } catch {}
     };
-  }, [user]);
+  }, [user, includeArchived, priorityFilter, statusFilter, selectedAlert, fetchAlerts]);
 
   // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -388,6 +434,25 @@ export default function AlertsPage() {
     }
   };
 
+  const handleBulkAction = async (action: "bulk_resolve" | "bulk_archive") => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    try {
+      const token = await getValidToken();
+      const res = await fetch("/api/dashboard/alerts", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ids }),
+      });
+      if (res.ok) {
+        setSelectedIds(new Set());
+        fetchAlerts(true);
+      }
+    } catch (err) {
+      console.error("[Alerts] Bulk action error:", err);
+    }
+  };
+
   const handleAiAction = async (alertId: string, action: string) => {
     setAiLoading(action);
     try {
@@ -399,18 +464,26 @@ export default function AlertsPage() {
       });
       if (res.ok) {
         const json = await res.json();
-        // Update the local alert with AI result
-        if (action === "summarize") {
-          setAlerts((prev) => prev.map((a) => a.id === alertId ? { ...a, ai_summary: json.result } : a));
-          if (selectedAlert?.id === alertId) setSelectedAlert((prev) => prev ? { ...prev, ai_summary: json.result } : prev);
-        } else if (action === "suggest_action") {
-          setAlerts((prev) => prev.map((a) => a.id === alertId ? { ...a, ai_suggested_action: json.result } : a));
-          if (selectedAlert?.id === alertId) setSelectedAlert((prev) => prev ? { ...prev, ai_suggested_action: json.result } : prev);
-        } else if (action === "draft_reply") {
+        // The API returns the parsed text. We will manually update the local client state.
+        // Wait, the API handler updates the database schema properly inside `ai_data`.
+        // So fetching alerts again will refresh everything, but we can also modify local state:
+        setAlerts((prev) =>
+          prev.map((a) => {
+            if (a.id !== alertId) return a;
+            const updatedAiData = {
+              ...(a.ai_data || {}),
+              summary: action === "summarize" ? json.result : a.ai_data?.summary,
+              action: action === "suggest_action" ? json.result : a.ai_data?.action,
+              draft_reply: action === "draft_reply" ? json.result : a.ai_data?.draft_reply,
+            };
+            const updatedAlert = { ...a, ai_data: updatedAiData };
+            if (selectedAlert?.id === alertId) setSelectedAlert(updatedAlert);
+            return updatedAlert;
+          })
+        );
+        if (action === "draft_reply") {
           setDraftReply(json.result);
           setShowReplyComposer(true);
-          setAlerts((prev) => prev.map((a) => a.id === alertId ? { ...a, ai_draft_reply: json.result } : a));
-          if (selectedAlert?.id === alertId) setSelectedAlert((prev) => prev ? { ...prev, ai_draft_reply: json.result } : prev);
         }
       }
     } catch (err) {
@@ -466,6 +539,53 @@ export default function AlertsPage() {
     }
   };
 
+  const handleTestAlert = async () => {
+    if (!formName) {
+      setFormError("Alert name is required to run a test");
+      return;
+    }
+    setFormTesting(true);
+    setFormError(null);
+    try {
+      const token = await getValidToken();
+      const triggerConfig: any = {};
+      if (formCondition === "keyword_match") triggerConfig.keywords = formKeywords.split(",").map((k) => k.trim()).filter(Boolean);
+      if (formCondition === "priority_sender") triggerConfig.senders = formSenders.split(",").map((s) => s.trim()).filter(Boolean);
+      if (formCondition === "unread_threshold") triggerConfig.threshold = parseInt(formThreshold) || 5;
+      if (formCondition === "deadline_approaching") triggerConfig.hours_ahead = parseInt(formHoursAhead) || 24;
+
+      const res = await fetch("/api/dashboard/alerts", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName,
+          description: formDesc,
+          selected_apps: formApps,
+          trigger_condition: formCondition,
+          trigger_config: triggerConfig,
+          priority: formPriority,
+          notification_method: formNotification,
+          frequency: formFrequency,
+          action_type: formAction,
+          isTest: true, // Trigger test alert directly
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok) {
+        fetchAlerts(true);
+        alert(`Test alert "${json.data?.title}" successfully simulated!`);
+      } else {
+        setFormError(json.error || "Failed to trigger test alert");
+      }
+    } catch (err: any) {
+      console.error("[Alerts] Test alert error:", err);
+      setFormError(err.message || "An unexpected error occurred during test");
+    } finally {
+      setFormTesting(false);
+    }
+  };
+
   const resetForm = () => {
     setFormName(""); setFormDesc(""); setFormApps([]);
     setFormCondition("keyword_match"); setFormKeywords(""); setFormSenders("");
@@ -487,6 +607,21 @@ export default function AlertsPage() {
     setFormCondition(s.condition);
     setFormPriority(s.priority);
     setShowCreateDialog(true);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === alerts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(alerts.map((a) => a.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
   };
 
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -566,7 +701,7 @@ export default function AlertsPage() {
             {["all", "critical", "high", "medium", "low"].map((p) => (
               <button
                 key={p}
-                onClick={() => setPriorityFilter(p)}
+                onClick={() => { setPriorityFilter(p); setPage(1); }}
                 className={`px-3 py-1.5 rounded-full text-[11px] font-semibold capitalize transition-all cursor-pointer border ${
                   priorityFilter === p
                     ? p === "critical" ? "bg-red-500/15 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-500/30"
@@ -588,7 +723,7 @@ export default function AlertsPage() {
             {["all", "active", "acknowledged", "resolved", "snoozed"].map((s) => (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => { setStatusFilter(s); setPage(1); }}
                 className={`px-3 py-1.5 rounded-full text-[11px] font-semibold capitalize transition-all cursor-pointer border ${
                   statusFilter === s
                     ? "bg-card border border-card-border text-text-primary font-bold shadow-sm"
@@ -598,6 +733,21 @@ export default function AlertsPage() {
                 {s}
               </button>
             ))}
+          </div>
+
+          {/* Archive Toggle */}
+          <div className="flex items-center gap-2 pl-4 border-l border-card-border">
+            <button
+              onClick={() => { setIncludeArchived(!includeArchived); setPage(1); }}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                includeArchived
+                  ? "bg-card border border-card-border text-text-primary font-bold shadow-sm"
+                  : "bg-transparent border-card-border text-text-secondary hover:text-text-primary hover:bg-muted"
+              }`}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              Show Archived
+            </button>
           </div>
         </div>
 
@@ -609,45 +759,103 @@ export default function AlertsPage() {
               type="text"
               placeholder="Search alerts..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               className="w-full pl-10 pr-4 py-2 rounded-xl text-sm bg-card border border-card-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/20 transition-all shadow-sm"
             />
           </div>
         </div>
       </div>
 
+      {/* ── Bulk Actions Bar ──────────────────────────────────────────────────── */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-4 bg-muted/60 border border-card-border rounded-2xl animate-fadeIn shadow-sm">
+          <span className="text-xs font-semibold text-text-secondary">
+            {selectedIds.size} alert(s) selected
+          </span>
+          <button
+            onClick={() => handleBulkAction("bulk_resolve")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-all cursor-pointer"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" /> Mark Resolved
+          </button>
+          <button
+            onClick={() => handleBulkAction("bulk_archive")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-zinc-500/15 hover:bg-zinc-500/25 text-text-secondary border border-card-border transition-all cursor-pointer"
+          >
+            <Archive className="w-3.5 h-3.5" /> Archive Selected
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-text-secondary hover:text-text-primary ml-auto transition-colors cursor-pointer"
+          >
+            Clear Selection
+          </button>
+        </div>
+      )}
+
       {/* ── Main Content Grid (Two-Column Desktop Layout) ───────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(320px,1fr)] gap-6 items-start">
         {/* LEFT COLUMN: Recent Alerts Timeline */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-text-secondary" />
-            <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">Recent Alerts</h2>
-            <span className="text-[10px] font-mono text-text-secondary bg-muted px-2 py-0.5 rounded-full border border-card-border">{alerts.length}</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-text-secondary" />
+              <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">Recent Alerts</h2>
+              <span className="text-[10px] font-mono text-text-secondary bg-muted px-2 py-0.5 rounded-full border border-card-border">{totalAlerts}</span>
+            </div>
+
+            {alerts.length > 0 && (
+              <button
+                onClick={toggleSelectAll}
+                className="flex items-center gap-1 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+              >
+                {selectedIds.size === alerts.length ? <CheckSquare className="w-4 h-4 text-rose-500" /> : <Square className="w-4 h-4" />}
+                {selectedIds.size === alerts.length ? "Deselect All" : "Select All"}
+              </button>
+            )}
           </div>
 
           {alerts.length > 0 ? (
             <div className="relative">
-              {/* Timeline line */}
-              <div className="absolute left-[27px] top-6 bottom-6 w-px bg-gradient-to-b from-rose-500/30 via-card-border to-transparent hidden sm:block" />
+              {/* True connected nodes vertical timeline line */}
+              <div className="absolute left-[44px] top-6 bottom-6 w-px bg-gradient-to-b from-rose-500/40 via-card-border/80 to-transparent hidden sm:block" />
 
               <div className="space-y-4">
                 {alerts.map((alert, idx) => {
                   const pc = priorityColors[alert.priority] || priorityColors.medium;
                   const sc = statusColors[alert.status] || statusColors.active;
+                  const isSelected = selectedIds.has(alert.id);
                   return (
                     <div
                       key={alert.id}
                       onClick={() => { setSelectedAlert(alert); setShowReplyComposer(false); setDraftReply(""); setShowSnoozePicker(false); }}
-                      className={`relative glassmorphism rounded-2xl p-5 sm:pl-16 border transition-all cursor-pointer group hover:scale-[1.002] ${
+                      className={`relative glassmorphism rounded-2xl p-5 pl-4 sm:pl-20 border transition-all cursor-pointer group hover:scale-[1.002] ${
                         alert.status === "active" ? `${pc.border} hover:border-card-border/80` : "border-card-border hover:border-card-border/80"
-                      } ${alert.status === "resolved" ? "opacity-60" : ""}`}
+                      } ${alert.status === "resolved" ? "opacity-60" : ""} ${isSelected ? "ring-1 ring-rose-500/20 bg-rose-500/[0.01]" : ""}`}
                       style={{ animationDelay: `${idx * 50}ms` }}
                     >
-                      {/* Timeline dot */}
-                      <div className={`absolute left-[21px] top-7 w-3.5 h-3.5 rounded-full ${pc.dot} ring-4 ring-card-bg hidden sm:block z-10 ${alert.status === "active" ? "animate-pulse" : ""}`} />
+                      {/* Node connection details */}
+                      <div className="absolute left-10 top-7 w-2 h-2 rounded-full bg-card-border border border-card-bg hidden sm:block z-10 group-hover:bg-rose-500 transition-colors" />
 
-                      <div className="flex flex-col sm:flex-row items-start gap-4">
+                      {/* Timeline dot */}
+                      <div className={`absolute left-[38px] top-6 w-3 h-3 rounded-full ${pc.dot} ring-4 ring-card-bg hidden sm:block z-20 ${alert.status === "active" ? "animate-pulse" : ""}`} />
+
+                      <div className="flex items-start gap-4">
+                        {/* Selector Checkbox */}
+                        <div
+                          className="flex items-center self-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelectOne(alert.id);
+                          }}
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 text-rose-500 cursor-pointer" />
+                          ) : (
+                            <Square className="w-4 h-4 text-text-secondary/60 group-hover:text-text-secondary cursor-pointer" />
+                          )}
+                        </div>
+
                         {/* App icon */}
                         <div className="w-11 h-11 rounded-xl bg-muted border border-card-border flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform shadow-sm">
                           <PlatformIcon platformId={alert.source_app} className="w-5 h-5" />
@@ -663,6 +871,11 @@ export default function AlertsPage() {
                             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase ${sc.bg} ${sc.text}`}>
                               {alert.status}
                             </span>
+                            {alert.archived_at && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-mono uppercase bg-zinc-500/10 text-zinc-550 border border-zinc-500/20">
+                                Archived
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs md:text-sm text-text-secondary line-clamp-2 mb-2 leading-relaxed">{alert.description}</p>
                           <div className="flex items-center gap-3 text-[11px] text-text-secondary font-mono">
@@ -672,7 +885,7 @@ export default function AlertsPage() {
                             </span>
                             <span>•</span>
                             <span>{timeAgo(alert.created_at)}</span>
-                            {alert.ai_summary && (
+                            {alert.ai_data?.summary && (
                               <>
                                 <span>•</span>
                                 <span className="flex items-center gap-1 text-violet-500"><Sparkles className="w-3.5 h-3.5" /> AI Enriched</span>
@@ -683,13 +896,24 @@ export default function AlertsPage() {
 
                         {/* Quick actions */}
                         <div className="flex items-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity self-start sm:self-center">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleAction(alert.id, "resolve"); }}
-                            className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-all cursor-pointer shadow-sm"
-                            title="Resolve"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                          </button>
+                          {alert.status !== "resolved" && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleAction(alert.id, "resolve"); }}
+                              className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 transition-all cursor-pointer shadow-sm"
+                              title="Resolve"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {!alert.archived_at && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleAction(alert.id, "archive"); }}
+                              className="p-2.5 rounded-xl bg-zinc-500/10 hover:bg-zinc-500/20 text-text-secondary border border-card-border transition-all cursor-pointer shadow-sm"
+                              title="Archive"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); setSelectedAlert(alert); }}
                             className="p-2.5 rounded-xl bg-muted hover:bg-muted/80 text-text-secondary hover:text-text-primary border border-card-border transition-all cursor-pointer shadow-sm"
@@ -703,6 +927,31 @@ export default function AlertsPage() {
                   );
                 })}
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-6 mt-4 border-t border-card-border">
+                  <span className="text-xs text-text-secondary font-mono">
+                    Page {page} of {totalPages} ({totalAlerts} total)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="p-2 rounded-xl border border-card-border bg-card text-text-secondary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="p-2 rounded-xl border border-card-border bg-card text-text-secondary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-card/50 border border-card-border border-dashed rounded-3xl p-16 text-center flex flex-col items-center justify-center shadow-sm">
@@ -952,17 +1201,29 @@ export default function AlertsPage() {
                 </div>
               </div>
 
-              {/* Submit */}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreateDialog(false)}
-                  className="px-5 py-2.5 rounded-xl text-xs font-semibold text-text-secondary hover:text-text-primary border border-card-border hover:bg-muted transition-all cursor-pointer">
-                  Cancel
+              {/* Submit & Test row */}
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={handleTestAlert}
+                  disabled={formTesting || !formName || formApps.length === 0}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border border-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  {formTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                  Test Alert
                 </button>
-                <button type="submit" disabled={formSubmitting || !formName || formApps.length === 0}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer">
-                  {formSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                  Create Alert Rule
-                </button>
+
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => setShowCreateDialog(false)}
+                    className="px-5 py-2.5 rounded-xl text-xs font-semibold text-text-secondary hover:text-text-primary border border-card-border hover:bg-muted transition-all cursor-pointer">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={formSubmitting || !formName || formApps.length === 0}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer">
+                    {formSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    Create Alert Rule
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1026,6 +1287,12 @@ export default function AlertsPage() {
                     <CheckCircle2 className="w-3.5 h-3.5" /> Mark Resolved
                   </button>
                 )}
+                {!selectedAlert.archived_at && (
+                  <button onClick={() => handleAction(selectedAlert.id, "archive")}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-zinc-550/10 hover:bg-zinc-550/20 text-text-secondary border border-card-border transition-all cursor-pointer shadow-sm">
+                    <Archive className="w-3.5 h-3.5" /> Archive
+                  </button>
+                )}
                 {selectedAlert.status !== "acknowledged" && selectedAlert.status !== "resolved" && (
                   <button onClick={() => handleAction(selectedAlert.id, "acknowledge")}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 border border-violet-500/20 transition-all cursor-pointer shadow-sm">
@@ -1082,8 +1349,8 @@ export default function AlertsPage() {
                       Generate
                     </button>
                   </div>
-                  {selectedAlert.ai_summary ? (
-                    <p className="text-xs text-text-secondary leading-relaxed">{selectedAlert.ai_summary}</p>
+                  {selectedAlert.ai_data?.summary ? (
+                    <p className="text-xs text-text-secondary leading-relaxed">{selectedAlert.ai_data.summary}</p>
                   ) : (
                     <p className="text-[11px] text-text-secondary italic">Click &quot;Generate&quot; to create an AI summary</p>
                   )}
@@ -1101,8 +1368,8 @@ export default function AlertsPage() {
                       Suggest
                     </button>
                   </div>
-                  {selectedAlert.ai_suggested_action ? (
-                    <p className="text-xs text-text-secondary leading-relaxed">{selectedAlert.ai_suggested_action}</p>
+                  {selectedAlert.ai_data?.action ? (
+                    <p className="text-xs text-text-secondary leading-relaxed">{selectedAlert.ai_data.action}</p>
                   ) : (
                     <p className="text-[11px] text-text-secondary italic">Click &quot;Suggest&quot; to get AI recommendations</p>
                   )}
@@ -1143,10 +1410,10 @@ export default function AlertsPage() {
                         </button>
                       </div>
                     </div>
-                  ) : selectedAlert.ai_draft_reply ? (
+                  ) : selectedAlert.ai_data?.draft_reply ? (
                     <div>
-                      <p className="text-xs text-text-secondary leading-relaxed mb-2 whitespace-pre-wrap">{selectedAlert.ai_draft_reply}</p>
-                      <button onClick={() => { setDraftReply(selectedAlert.ai_draft_reply || ""); setShowReplyComposer(true); }}
+                      <p className="text-xs text-text-secondary leading-relaxed mb-2 whitespace-pre-wrap">{selectedAlert.ai_data.draft_reply}</p>
+                      <button onClick={() => { setDraftReply(selectedAlert.ai_data?.draft_reply || ""); setShowReplyComposer(true); }}
                         className="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 transition-colors cursor-pointer">
                         <ExternalLink className="w-3 h-3" /> Edit & Send
                       </button>

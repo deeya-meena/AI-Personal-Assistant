@@ -281,22 +281,23 @@ export async function evaluateAlertRule(ruleId: string, userId: string): Promise
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { data: recentAlerts } = await client.database
     .from("triggered_alerts")
-    .select("title, source_app")
+    .select("dedupe_key")
     .eq("user_id", userId)
     .eq("alert_id", ruleId)
     .gte("created_at", fiveMinutesAgo);
 
-  const recentTitles = new Set(
-    (recentAlerts || []).map((a: any) => `${a.source_app}:${a.title}`)
+  const recentDedupeKeys = new Set(
+    (recentAlerts || []).map((a: any) => a.dedupe_key).filter(Boolean)
   );
 
   // Insert triggered alerts for new matches
   const newAlerts: any[] = [];
   for (const { app, item } of allMatches) {
     const title = item.subject || item.title || item.message?.substring(0, 50) || "Alert Triggered";
-    const key = `${app}:${title}`;
+    const sourceId = item.id ? String(item.id) : null;
+    const dedupeKey = sourceId ? `${userId}:${ruleId}:${app}:${sourceId}` : null;
 
-    if (recentTitles.has(key)) continue; // Skip duplicate
+    if (dedupeKey && recentDedupeKeys.has(dedupeKey)) continue; // Skip duplicate
 
     newAlerts.push({
       user_id: userId,
@@ -307,6 +308,9 @@ export async function evaluateAlertRule(ruleId: string, userId: string): Promise
       full_content: item,
       priority: item.priority || rule.priority || "medium",
       status: "active",
+      source_id: sourceId,
+      dedupe_key: dedupeKey,
+      ai_data: {},
     });
   }
 
@@ -322,14 +326,14 @@ export async function evaluateAlertRule(ruleId: string, userId: string): Promise
   // Insert new triggered alerts
   const { error: insertErr } = await client.database
     .from("triggered_alerts")
-    .insert(newAlerts);
+    .upsert(newAlerts, { onConflict: "dedupe_key" });
 
   if (insertErr) {
     console.error("[Alert Rule Evaluation] Failed to insert triggered alerts:", insertErr);
     return;
   }
 
-  console.log(`[Alert Rule Evaluation] Inserted ${newAlerts.length} new triggered alerts.`);
+  console.log(`[Alert Rule Evaluation] Inserted/Upserted ${newAlerts.length} triggered alerts.`);
 
   // Generate AI enrichment for the first few alerts
   const apiKey = process.env.GEMINI_API_KEY;
@@ -340,7 +344,7 @@ export async function evaluateAlertRule(ruleId: string, userId: string): Promise
       // Get the inserted alert IDs
       const { data: insertedAlerts } = await client.database
         .from("triggered_alerts")
-        .select("id, title, description, source_app, priority")
+        .select("id, title, description, source_app, priority, ai_data")
         .eq("user_id", userId)
         .eq("alert_id", ruleId)
         .order("created_at", { ascending: false })
@@ -364,14 +368,20 @@ Return JSON: {"summary": "...", "action": "..."}`,
             },
           });
 
-          const text = response.text || "{}";
+          const text = response?.text || "{}";
           const parsed = JSON.parse(text.replace(/^```json\s*/i, "").replace(/```$/, "").trim());
+
+          const currentAiData = alert.ai_data || {};
+          const updatedAiData = {
+            ...currentAiData,
+            summary: parsed.summary || "",
+            action: parsed.action || "",
+          };
 
           await client.database
             .from("triggered_alerts")
             .update({
-              ai_summary: parsed.summary || null,
-              ai_suggested_action: parsed.action || null,
+              ai_data: updatedAiData,
             })
             .eq("id", alert.id);
 

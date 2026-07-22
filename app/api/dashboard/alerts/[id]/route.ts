@@ -72,6 +72,9 @@ export async function PATCH(
       case "resolve":
         updateData = { status: "resolved", resolved_at: new Date().toISOString() };
         break;
+      case "archive":
+        updateData = { archived_at: new Date().toISOString() };
+        break;
       case "acknowledge":
         updateData = { status: "acknowledged" };
         break;
@@ -84,15 +87,23 @@ export async function PATCH(
         updateData = { status: "active", snoozed_until: null };
         break;
       case "update_ai":
+        // Fetch existing alert first to get current ai_data and merge
+        const { data: existingAlert } = await client.database
+          .from("triggered_alerts")
+          .select("ai_data")
+          .eq("id", id)
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        const currentAiData = existingAlert?.ai_data || {};
         updateData = {
-          ai_summary: updateFields.ai_summary || undefined,
-          ai_suggested_action: updateFields.ai_suggested_action || undefined,
-          ai_draft_reply: updateFields.ai_draft_reply || undefined,
+          ai_data: {
+            ...currentAiData,
+            summary: updateFields.summary !== undefined ? updateFields.summary : currentAiData.summary,
+            action: updateFields.action !== undefined ? updateFields.action : currentAiData.action,
+            draft_reply: updateFields.draft_reply !== undefined ? updateFields.draft_reply : currentAiData.draft_reply,
+          }
         };
-        // Remove undefined keys
-        Object.keys(updateData).forEach(
-          (key) => updateData[key] === undefined && delete updateData[key]
-        );
         break;
       case "update_rule":
         // Update alert rule fields

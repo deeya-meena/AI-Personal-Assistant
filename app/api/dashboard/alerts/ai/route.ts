@@ -57,11 +57,17 @@ Full Content: ${JSON.stringify(alert.full_content)}`,
 
         const summary = response?.text || "Unable to generate summary.";
 
-        // Save to DB
+        // Save to DB inside ai_data
         if (alertId) {
+          const currentAiData = alert.ai_data || {};
           await client.database
             .from("triggered_alerts")
-            .update({ ai_summary: summary })
+            .update({
+              ai_data: {
+                ...currentAiData,
+                summary,
+              }
+            })
             .eq("id", alertId)
             .eq("user_id", userId);
         }
@@ -90,10 +96,17 @@ Full Content: ${JSON.stringify(alert.full_content)}`,
 
         const suggestion = response?.text || "Review and acknowledge this alert.";
 
+        // Save to DB inside ai_data
         if (alertId) {
+          const currentAiData = alert.ai_data || {};
           await client.database
             .from("triggered_alerts")
-            .update({ ai_suggested_action: suggestion })
+            .update({
+              ai_data: {
+                ...currentAiData,
+                action: suggestion,
+              }
+            })
             .eq("id", alertId)
             .eq("user_id", userId);
         }
@@ -131,10 +144,17 @@ Context: This is a ${alert.source_app} ${alert.source_app === "gmail" ? "email" 
 
         const draft = response?.text || "Thank you for bringing this to my attention. I'll look into it and get back to you shortly.";
 
+        // Save to DB inside ai_data
         if (alertId) {
+          const currentAiData = alert.ai_data || {};
           await client.database
             .from("triggered_alerts")
-            .update({ ai_draft_reply: draft })
+            .update({
+              ai_data: {
+                ...currentAiData,
+                draft_reply: draft,
+              }
+            })
             .eq("id", alertId)
             .eq("user_id", userId);
         }

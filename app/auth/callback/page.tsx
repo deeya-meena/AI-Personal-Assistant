@@ -13,25 +13,50 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      console.log(`[Auth Log] AuthCallbackPage mounted at ${new Date().toISOString()}`);
+      console.log(`[Auth Log] Current URL query params: ${window.location.search}`);
+
+      const params = new URLSearchParams(window.location.search);
+      const urlError = params.get("error") || params.get("error_description");
+      const insforgeCode = params.get("insforge_code");
+
+      if (urlError) {
+        console.error(`[Auth Log] OAuth provider returned error param: ${urlError}`);
+        setError(`Authentication provider error: ${urlError}`);
+        return;
+      }
+
+      // If insforge_code is present in URL, exchange code for session if not already handled by SDK auto-detect
+      if (insforgeCode) {
+        console.log(`[Auth Log] Detected insforge_code in URL. Exchanging code for session...`);
+        try {
+          const { error: exchangeErr } = await insforge.auth.exchangeOAuthCode(insforgeCode);
+          if (exchangeErr) {
+            console.error(`[Auth Log] OAuth code exchange failed:`, exchangeErr);
+            setError(exchangeErr.message || "Failed to exchange OAuth authentication code");
+            return;
+          }
+          console.log(`[Auth Log] OAuth code exchange succeeded.`);
+        } catch (codeErr: any) {
+          console.error(`[Auth Log] Exception during OAuth code exchange:`, codeErr);
+        }
+      }
+
       try {
-        // The SDK automatically exchanges the code in the URL for a session on initialization
-        // We fetch the current user to verify authentication is complete.
+        console.log(`[Auth Log] Fetching authenticated user session via insforge.auth.getCurrentUser()...`);
         const { data, error: authError } = await insforge.auth.getCurrentUser();
         
-        if (authError) {
-          setError(authError.message || "Authentication callback failed");
-          return;
-        }
-
         if (data?.user) {
-          // Sync user to the database users table on first Google sign in
+          console.log(`[Auth Log] Authenticated user retrieved: ${data.user.id} (${data.user.email}). Syncing DB user...`);
           await syncUser(data.user);
+          console.log(`[Auth Log] DB sync completed. Redirecting to /dashboard`);
           router.push("/dashboard");
         } else {
-          // No user found, redirect to signin
-          router.push("/auth/signin");
+          console.warn(`[Auth Log] No active user session found after callback processing. (Reason: ${authError?.message || "Unauthenticated"})`);
+          setError("Sign in could not be completed or session expired. Please try signing in again.");
         }
       } catch (err: any) {
+        console.error(`[Auth Log] Unexpected exception during callback handling:`, err);
         setError(err.message || "An unexpected error occurred during auth callback");
       }
     };

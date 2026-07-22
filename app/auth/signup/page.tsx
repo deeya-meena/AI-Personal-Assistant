@@ -68,11 +68,29 @@ export default function SignUpPage() {
   // Google Sign In/Up
   const handleGoogleSignIn = async () => {
     setError(null);
+    console.log("[Auth Log] Initializing Google OAuth registration/sign-in...");
     try {
-      await insforge.auth.signInWithOAuth("google", {
-        redirectTo: window.location.origin + "/auth/callback",
+      const redirectUri = window.location.origin + "/auth/callback";
+      console.log(`[Auth Log] Google OAuth redirect URI: ${redirectUri}`);
+
+      const { data, error: oauthError } = await insforge.auth.signInWithOAuth("google", {
+        redirectTo: redirectUri,
       });
+
+      if (oauthError) {
+        console.error("[Auth Log] Google OAuth initialization error:", oauthError);
+        setError(oauthError.message || "Google auth failed");
+        return;
+      }
+
+      if (data?.url) {
+        console.log(`[Auth Log] Redirecting browser to OAuth URL: ${data.url}`);
+        window.location.href = data.url;
+      } else {
+        console.log("[Auth Log] Google OAuth initiated (SDK auto-redirecting)");
+      }
     } catch (err: any) {
+      console.error("[Auth Log] Unexpected Google auth error:", err);
       setError(err.message || "Google auth failed");
     }
   };
