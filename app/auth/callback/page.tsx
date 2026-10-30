@@ -3,98 +3,124 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
-import { insforge } from "../../../lib/insforge";
-import { Bot, Loader2, AlertCircle } from "lucide-react";
+import { Bot, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const { syncUser } = useAuth();
+  const { setUserState } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("Verifying authorization code with Google...");
 
   useEffect(() => {
-    const handleCallback = async () => {
-      console.log(`[Auth Log] AuthCallbackPage mounted at ${new Date().toISOString()}`);
-      console.log(`[Auth Log] Current URL query params: ${window.location.search}`);
+    let isCancelled = false;
 
-      const params = new URLSearchParams(window.location.search);
-      const urlError = params.get("error") || params.get("error_description");
-      const insforgeCode = params.get("insforge_code");
-
-      if (urlError) {
-        console.error(`[Auth Log] OAuth provider returned error param: ${urlError}`);
-        setError(`Authentication provider error: ${urlError}`);
-        return;
-      }
-
-      // If insforge_code is present in URL, exchange code for session if not already handled by SDK auto-detect
-      if (insforgeCode) {
-        console.log(`[Auth Log] Detected insforge_code in URL. Exchanging code for session...`);
-        try {
-          const { error: exchangeErr } = await insforge.auth.exchangeOAuthCode(insforgeCode);
-          if (exchangeErr) {
-            console.error(`[Auth Log] OAuth code exchange failed:`, exchangeErr);
-            setError(exchangeErr.message || "Failed to exchange OAuth authentication code");
-            return;
-          }
-          console.log(`[Auth Log] OAuth code exchange succeeded.`);
-        } catch (codeErr: any) {
-          console.error(`[Auth Log] Exception during OAuth code exchange:`, codeErr);
-        }
-      }
-
+    const processOAuthCallback = async () => {
       try {
-        console.log(`[Auth Log] Fetching authenticated user session via insforge.auth.getCurrentUser()...`);
-        const { data, error: authError } = await insforge.auth.getCurrentUser();
-        
+        const search = window.location.search;
+        const params = new URLSearchParams(search);
+        const urlError = params.get("error");
+        const urlErrorDescription = params.get("error_description");
+        const code = params.get("code") || params.get("insforge_code");
+
+        // 1. Check for provider error or user cancellation
+        if (urlError) {
+          if (urlError === "access_denied") {
+            setError("Google sign-in was cancelled or access was denied.");
+          } else {
+            setError(urlErrorDescription || `Google authentication error: ${urlError}`);
+          }
+          return;
+        }
+
+        // 2. Missing authorization code
+        if (!code) {
+          setError("No authorization code was found in the callback request.");
+          return;
+        }
+
+        setStatusMessage("Completing authentication and linking account...");
+
+        const redirectUri = `${window.location.origin}/auth/callback`;
+
+        // 3. Exchange authorization code on server
+        const res = await fetch("/api/auth/google/callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code,
+            redirectUri,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (isCancelled) return;
+
+        if (!res.ok || data.error) {
+          setError(data.error?.message || "Failed to complete Google authentication.");
+          return;
+        }
+
         if (data?.user) {
-          console.log(`[Auth Log] Authenticated user retrieved: ${data.user.id} (${data.user.email}). Syncing DB user...`);
-          await syncUser(data.user);
-          console.log(`[Auth Log] DB sync completed. Redirecting to /dashboard`);
-          router.push("/dashboard");
+          setUserState(data.user);
+          setStatusMessage("Authentication successful! Redirecting to workspace...");
+          setTimeout(() => {
+            if (!isCancelled) {
+              router.push("/dashboard");
+            }
+          }, 400);
         } else {
-          console.warn(`[Auth Log] No active user session found after callback processing. (Reason: ${authError?.message || "Unauthenticated"})`);
-          setError("Sign in could not be completed or session expired. Please try signing in again.");
+          setError("Authentication succeeded, but no user profile was returned.");
         }
       } catch (err: any) {
-        console.error(`[Auth Log] Unexpected exception during callback handling:`, err);
-        setError(err.message || "An unexpected error occurred during auth callback");
+        if (!isCancelled) {
+          console.error("[OAuth Callback Exception]:", err);
+          setError(err.message || "An unexpected error occurred while processing the login callback.");
+        }
       }
     };
 
-    handleCallback();
-  }, [router, syncUser]);
+    processOAuthCallback();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [router, setUserState]);
 
   return (
-    <div className="min-h-screen bg-bg-dark text-foreground flex items-center justify-center relative overflow-hidden px-4 transition-colors duration-300">
+    <div className="min-h-screen bg-bg-dark text-foreground flex items-center justify-center p-4 sm:p-6 relative overflow-hidden transition-colors duration-300">
       {/* Decorative Spheres */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-accent-violet/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-accent-indigo/10 blur-[120px] pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-accent-violet/15 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-accent-indigo/15 blur-[150px] pointer-events-none" />
       <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none z-0" />
 
-      <div className="w-full max-w-md glassmorphism rounded-3xl p-8 space-y-6 text-center relative z-10 shadow-2xl">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent-violet to-accent-indigo flex items-center justify-center mx-auto shadow-lg animate-pulse">
-          <Bot className="w-6 h-6 text-white" />
+      <div className="w-full max-w-md glassmorphism rounded-3xl p-8 space-y-6 text-center relative z-10 shadow-2xl border border-card-border/80 backdrop-blur-xl">
+        <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-accent-violet to-accent-indigo flex items-center justify-center mx-auto shadow-lg shadow-accent-violet/30 border border-white/20 animate-pulse">
+          <Bot className="w-7 h-7 text-white" />
         </div>
-        
+
         {error ? (
-          <div className="space-y-4">
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex gap-3 text-sm text-red-400 text-left">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              <p>{error}</p>
+          <div className="space-y-5 animate-fadeIn">
+            <div className="bg-red-500/10 border border-red-500/25 rounded-2xl p-4 flex items-start gap-3 text-sm text-red-400 text-left">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="text-xs leading-relaxed">{error}</div>
             </div>
-            <button
-              onClick={() => router.push("/auth/signin")}
-              className="px-5 py-2.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 text-sm font-semibold rounded-xl text-text-primary transition-all cursor-pointer"
+
+            <Link
+              href="/auth/signin"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-card-border text-sm font-semibold rounded-xl text-text-primary transition-all cursor-pointer w-full"
             >
-              Back to Sign In
-            </button>
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Sign In</span>
+            </Link>
           </div>
         ) : (
-          <div className="space-y-3">
-            <h2 className="text-xl font-bold text-text-primary">Completing sign in</h2>
-            <p className="text-sm text-zinc-550 dark:text-zinc-400">Syncing workspace credentials...</p>
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-text-primary">Completing Authentication</h2>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{statusMessage}</p>
             <div className="flex justify-center pt-2">
-              <Loader2 className="w-6 h-6 text-accent-violet animate-spin" />
+              <Loader2 className="w-7 h-7 text-accent-violet animate-spin" />
             </div>
           </div>
         )}

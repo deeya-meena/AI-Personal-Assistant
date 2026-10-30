@@ -69,3 +69,7 @@ check-all-tables.mjs
 
 
 .trigger
+
+# Local database store
+/data/
+*.db
